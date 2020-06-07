@@ -1,17 +1,16 @@
 """!
-@brief Pytorch dataloader for online mixing of wham dataset.
+@brief Pytorch dataloader for wham dataset.
 
 @author Efthymios Tzinis {etzinis2@illinois.edu}
 @copyright University of illinois at Urbana Champaign
 """
 
 import torch
-import json
 import os
 import numpy as np
+import pickle
 import glob2
 import abstract_dataset
-import torchaudio
 from scipy.io import wavfile
 from tqdm import tqdm
 
@@ -70,15 +69,14 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
         self.normalize_audio = self.get_arg_and_check_validness(
             'normalize_audio', known_type=bool)
 
+        self.min_or_max = self.get_arg_and_check_validness(
+            'min_or_max', known_type=str, choices=['min', 'max'])
+
         self.split = self.get_arg_and_check_validness(
             'split', known_type=str, choices=['cv', 'tr', 'tt'])
 
         self.n_samples = self.get_arg_and_check_validness(
             'n_samples', known_type=int, extra_lambda_checks=[lambda x: x >= 0])
-
-        # self.max_abs_snr = self.get_arg_and_check_validness(
-        #     'max_abs_snr', known_type=float,
-        #     extra_lambda_checks=[lambda x: x> 0])
 
         self.sample_rate = self.get_arg_and_check_validness('sample_rate',
                                                             known_type=int)
@@ -86,6 +84,9 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
             'root_dirpath', known_type=str,
             extra_lambda_checks=[lambda y: os.path.lexists(y)])
         self.dataset_dirpath = self.get_path()
+
+        self.mixtures_info_metadata_path = os.path.join(
+            self.dataset_dirpath, 'metadata')
 
         self.timelength = self.get_arg_and_check_validness(
             'timelength', known_type=float)
@@ -98,24 +99,36 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
         self.file_names = []
         self.available_mixtures = glob2.glob(mix_folder_path + '/*.wav')
 
+        self.mixtures_info = []
         print('Parsing Dataset found at: {}...'.format(self.dataset_dirpath))
-        files_counter = 0
-        max_time_samples = 0
-        for file_path in tqdm(self.available_mixtures):
-            sample_rate, waveform = wavfile.read(file_path)
-            assert sample_rate == self.sample_rate
-            numpy_wav = np.array(waveform)
+        if not os.path.lexists(self.mixtures_info_metadata_path):
+            for file_path in tqdm(self.available_mixtures):
+                sample_rate, waveform = wavfile.read(file_path)
+                assert sample_rate == self.sample_rate
+                numpy_wav = np.array(waveform)
+                self.mixtures_info.append(
+                    [os.path.basename(file_path), numpy_wav.shape[0]])
 
-            if self.time_samples <= 0.:
-                self.file_names.append(os.path.basename(file_path))
-                files_counter += 1
-                if max_time_samples <= numpy_wav.shape[0]:
-                    max_time_samples = numpy_wav.shape[0]
-            elif numpy_wav.shape[0] >= self.time_samples and not self.zero_pad:
-                self.file_names.append(os.path.basename(file_path))
-                files_counter += 1
-            if self.n_samples <= files_counter:
-                break
+            print('Dumping metadata in: {}'.format(
+                self.mixtures_info_metadata_path))
+            with open(self.mixtures_info_metadata_path, 'wb') as filehandle:
+                pickle.dump(self.mixtures_info, filehandle)
+
+        if os.path.lexists(self.mixtures_info_metadata_path):
+            with open(self.mixtures_info_metadata_path, 'rb') as filehandle:
+                self.mixtures_info = pickle.load(filehandle)
+                print('Loaded metadata from: {}'.format(
+                    self.mixtures_info_metadata_path))
+
+        self.file_names = [(path, n_samples)
+                           for (path, n_samples) in self.mixtures_info
+                           if (n_samples >= self.time_samples or self.zero_pad)]
+        if self.n_samples > 0:
+            self.file_names = self.file_names[:self.n_samples]
+
+        max_time_samples = max([n_s for (_, n_s) in self.file_names])
+        self.file_names = [x for (x, _) in self.file_names]
+        print(len(self.file_names))
 
         # for the case that we need the whole audio input
         if self.time_samples <= 0.:
@@ -124,7 +137,7 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
     def get_path(self):
         path = os.path.join(self.root_path,
                             'wav{}k'.format(int(self.sample_rate / 1000)),
-                            'max', self.split)
+                            self.min_or_max, self.split)
         if os.path.lexists(path):
             return path
         else:
@@ -132,14 +145,17 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
     def safe_pad(self, tensor_wav):
         if self.zero_pad and tensor_wav.shape[0] < self.time_samples:
-            padded_wav = torch.zeros_like(tensor_wav)
-            padded_wav[:self.time_samples] = tensor_wav
+            appropriate_shape = tensor_wav.shape
+            padded_wav = torch.zeros(
+                list(appropriate_shape[:-1]) + [self.time_samples],
+                dtype=torch.float32)
+            padded_wav[:tensor_wav.shape[0]] = tensor_wav
             return padded_wav[:self.time_samples]
         else:
             return tensor_wav[:self.time_samples]
 
     def __len__(self):
-        return self.n_samples
+        return len(self.file_names)
 
     def __getitem__(self, idx):
         filename = self.file_names[idx]
@@ -171,8 +187,9 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
             mixture_wav = normalize_tensor_wav(mixture_wav, std=mix_std)
             sources_list = [normalize_tensor_wav(s, std=mix_std)
                             for s in sources_list]
+        sources_wavs = torch.stack(sources_list, dim=0)
 
-        return mixture_wav, torch.stack(sources_list, dim=0)
+        return mixture_wav, sources_wavs
 
     def get_generator(self, batch_size=4, shuffle=True, num_workers=4):
         generator_params = {'batch_size': batch_size,
@@ -184,33 +201,33 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
 def test_generator():
     wham_root_p = '/mnt/data/wham'
-    batch_size = 4
+    batch_size = 1
     sample_rate = 8000
     timelength = 4.0
     time_samples = int(sample_rate * timelength)
     data_loader = Dataset(
-        root_dirpath=wham_root_p, task='enh_single',
+        root_dirpath=wham_root_p, task='sep_clean',
         split='tr', sample_rate=sample_rate, timelength=timelength,
-        zero_pad=False,
-        normalize_audio=True, n_samples=1000)
+        zero_pad=True, min_or_max='min',
+        normalize_audio=False, n_samples=10)
     generator = data_loader.get_generator(batch_size=batch_size, num_workers=1)
 
     for mixture, sources in generator:
+        print(mixture.shape)
         assert mixture.shape == (batch_size, time_samples)
         assert sources.shape == (batch_size, 2, time_samples)
+
 
     # test the testing set with batch size 1 only
     data_loader = Dataset(
         root_dirpath=wham_root_p, task='sep_clean',
-        split='tt', sample_rate=sample_rate, timelength=timelength,
-        zero_pad=False,
-        normalize_audio=False, n_samples=1000)
+        split='tt', sample_rate=sample_rate, timelength=-1.,
+        zero_pad=False, min_or_max='min',
+        normalize_audio=False, n_samples=10)
     generator = data_loader.get_generator(batch_size=1, num_workers=1)
 
     for mixture, sources in generator:
-        assert mixture.shape == (1, time_samples)
-        assert sources.shape == (1, 2, time_samples)
-        
+        print(mixture.shape)
 
 if __name__ == "__main__":
     test_generator()
