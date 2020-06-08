@@ -32,14 +32,39 @@ def get_args():
                         choices=['WHAM', 'LIBRI2MIX'])
     parser.add_argument("--n_train", type=int,
                         help="""Reduce the number of training 
-                                samples to this number.""", default=None)
+                                samples to this number.""", default=0)
     parser.add_argument("--n_val", type=int,
                         help="""Reduce the number of evaluation 
-                                samples to this number.""", default=None)
+                                samples to this number.""", default=0)
+    parser.add_argument("--n_test", type=int,
+                        help="""Reduce the number of test 
+                                    samples to this number.""", default=0)
+    parser.add_argument("--n_train_val", type=int,
+                        help="""Reduce the number of evaluation 
+                             samples on the training set.""", default=0)
     parser.add_argument("--audio_timelength", type=float,
                         help="""The timelength of the audio that you want 
                                 to load in seconds.""",
                         default=4.)
+    parser.add_argument("--min_or_max", type=str,
+                        help="""Min or max if this applies to the dataset 
+                        that you use. Min means that the mixture is going to 
+                        be cropped at the minimum of all sources and for max 
+                        is going to be zero-padded""",
+                        default='min',
+                        choices=['min', 'max'])
+    parser.add_argument("--zero_pad_audio", type=bool,
+                        help="""If a specific timelength is required all 
+                        audio sources and mixtures are going to be zero 
+                        padded in order to have the required length. If not 
+                        and a specific timelegth is required then the files 
+                        with less than required legth are not going to be 
+                        used.""",
+                        default=True)
+    parser.add_argument("--normalize_audio", type=bool,
+                        help="""Normalize using mean and standard deviation 
+                        before processing each audio file.""",
+                        default=True)
     # ===============================================
     # Separation task arguments
     parser.add_argument("--separation_task", type=str,
@@ -70,8 +95,8 @@ def get_args():
                             rate is not going to be divided by the 
                             specified factor.""",
                         default=0)
-    parser.add_argument("-fs", type=float,
-                        help="""Sampling rate of the audio.""", default=8000.)
+    parser.add_argument("-fs", type=int,
+                        help="""Sampling rate of the audio.""", default=8000)
     # ===============================================
     # CometML experiment configuration arguments
     parser.add_argument("-tags", "--cometml_tags", type=str,
