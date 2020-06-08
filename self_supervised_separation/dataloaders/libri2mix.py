@@ -10,7 +10,8 @@ import os
 import numpy as np
 import pickle
 import glob2
-import abstract_dataset
+import self_supervised_separation.dataloaders.abstract_dataset as \
+    abstract_dataset
 from scipy.io import wavfile
 from tqdm import tqdm
 
@@ -130,7 +131,6 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
         max_time_samples = max([n_s for (_, n_s) in self.file_names])
         self.file_names = [x for (x, _) in self.file_names]
-        print(len(self.file_names))
 
         # for the case that we need the whole audio input
         if self.time_samples <= 0.:

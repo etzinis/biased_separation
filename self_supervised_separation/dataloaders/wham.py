@@ -10,7 +10,8 @@ import os
 import numpy as np
 import pickle
 import glob2
-import abstract_dataset
+import self_supervised_separation.dataloaders.abstract_dataset as \
+    abstract_dataset
 from scipy.io import wavfile
 from tqdm import tqdm
 
