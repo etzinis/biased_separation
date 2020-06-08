@@ -36,6 +36,20 @@ def get_args():
     parser.add_argument("--n_val", type=int,
                         help="""Reduce the number of evaluation 
                                 samples to this number.""", default=None)
+    parser.add_argument("--audio_timelength", type=float,
+                        help="""The timelength of the audio that you want 
+                                to load in seconds.""",
+                        default=4.)
+    # ===============================================
+    # Separation task arguments
+    parser.add_argument("--separation_task", type=str,
+                        help="The separation task you would like to perform, "
+                             "some of the tasks might not be available for "
+                             "specific datasets.",
+                        default=None,
+                        choices=['enhance_single_white_noise',
+                                 'enhance_single', 'enhance_both',
+                                 'sep_clean', 'sep_noisy'])
     # ===============================================
     # Training params
     parser.add_argument("-bs", "--batch_size", type=int,
