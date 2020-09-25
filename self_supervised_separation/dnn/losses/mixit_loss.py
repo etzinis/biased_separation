@@ -5,6 +5,7 @@ import numpy as np
 
 
 # loss = 10log10(|y-y'|^2 + SNR_max * |y|^2) - 10log10(|y|^2)
+# negative threshold SNR
 def LossSNR(y, y_pred, SNR_max=30):
      # y: (bs, t)
      # y_pred: (bs, t)
@@ -40,33 +41,40 @@ class MixITLoss(nn.Module):
             for i in range(bs):
                 # shape of estimated_sources: (bs, num_sources, t)
                 # shape of one single mixit matrix: (2, num_sources)
-                
                 estimated_mixture = torch.matmul(self.A_tensor[idx_iter], estimated_sources[i])
                 estimated_mixtures[i] = estimated_mixture
             
             # shape of estimated_mixtures(bs, 2, t)
-            # estimated_mixtures = torch.tensor(estimated_mixtures)
             this_loss = LossSNR(estimated_mixtures[:, 0], m1) + LossSNR(estimated_mixtures[:, 1], m2)
             losses.append(this_loss)
-        return torch.argmin(torch.tensor(losses)), min(losses)
+
+        return torch.argmin(torch.tensor(losses)), min(losses) # this line is just for testing
+        # return min(losses)
 
 
-y = torch.tensor([[1.,2.,3.,4.], [2.,3.,4.,5.]])
-print(LossSNR(y, y))
-y_pred = torch.tensor([[2.,3.,4.,5.], [3.,4.,5.,6.]])
-print(LossSNR(y, y_pred))
+def test_mixit_loss():
+    y = torch.tensor([[1.,2.,3.,4.], [2.,3.,4.,5.]])
+    print(LossSNR(y, y))
+    y_pred = torch.tensor([[2.,3.,4.,5.], [3.,4.,5.,6.]])
+    print(LossSNR(y, y_pred))
 
-loss = MixITLoss(2)
-print(loss.A_tensor)
+    loss = MixITLoss(2)
+    print(loss.A_tensor)
 
-m1 = torch.tensor([3., 1., 7., 0.]).reshape(1, 4)
-m2 = torch.tensor([3., 3., 4., 0.]).reshape(1, 4)
-print(m1.shape)
+    m1 = torch.tensor([3., 1., 7., 0.]).reshape(1, 4)
+    m2 = torch.tensor([3., 3., 4., 0.]).reshape(1, 4)
+    print(m1.shape)
 
-time_dim = 4
+    time_dim = 4
 
-estimated_sources = torch.tensor([[1., 0., 2., 0.], [0., 1., 3., 0.], [2., 1., 5., 0.], [3., 2., 1., 0.]]).reshape(1, 4, 4)
+    estimated_sources = torch.tensor([[1., 0., 2., 0.], [0., 1., 3., 0.], [2., 1., 5., 0.], [3., 2., 1., 0.]]).reshape(1, 4, 4)
 
-index, min_loss = loss.forward(estimated_sources, m1, m2)
-print(loss.A_tensor[index])
-print(min_loss)
+    # let forward return index before doing this
+    index, min_loss = loss.forward(estimated_sources, m1, m2)
+
+    print(loss.A_tensor[index])
+    print(min_loss)
+
+if __name__ == "__main__":
+    test_mixit_loss()
+    pass
