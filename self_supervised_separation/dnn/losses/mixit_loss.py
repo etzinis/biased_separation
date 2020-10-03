@@ -38,8 +38,6 @@ class MixITLoss(nn.Module):
 
         for idx_iter in range(self.num_combinations):
 
-            estimated_mixtures = torch.zeros((bs, 2, time_dim))
-
             # matmul broadcast A_tensor[idx_iter]
             estimated_mixtures = torch.matmul(self.A_tensor[idx_iter], estimated_sources)
             
@@ -72,6 +70,8 @@ def test_mixit_loss():
 
     print(loss.A_tensor[index])
     print(min_loss)
+
+    print(torch.matmul(loss.A_tensor[index], estimated_sources)) # this should equal to m1 m2
 
 if __name__ == "__main__":
     test_mixit_loss()
