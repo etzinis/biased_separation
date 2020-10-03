@@ -9,9 +9,9 @@ import numpy as np
 def LossSNR(y, y_pred, SNR_max=30):
      # y: (bs, t)
      # y_pred: (bs, t)
-    a = torch.sum((y-y_pred)**2, axis=1)
-    b = torch.sum(y**2, axis=1)
-    loss = 10 * torch.log10(a + SNR_max * b) - 10 * torch.log10(b)
+    squared_error = torch.sum((y-y_pred)**2, axis=1)
+    y_norm_sqr = torch.sum(y**2, axis=1)
+    loss = 10 * torch.log10(squared_error + SNR_max * y_norm_sqr) - 10 * torch.log10(y_norm_sqr)
     return torch.sum(loss)
 
 
@@ -31,31 +31,29 @@ class MixITLoss(nn.Module):
             self.A_tensor[i,1] = 1 - combinations[i]
     
     def forward(self, estimated_sources, m1, m2):
-        
+        # this function returns the minimum loss and the index of the corresponding mixit matrix 
         bs = estimated_sources.shape[0]
         time_dim = m1.shape[-1]
         losses = []
+
         for idx_iter in range(self.num_combinations):
 
             estimated_mixtures = torch.zeros((bs, 2, time_dim))
-            for i in range(bs):
-                # shape of estimated_sources: (bs, num_sources, t)
-                # shape of one single mixit matrix: (2, num_sources)
-                estimated_mixture = torch.matmul(self.A_tensor[idx_iter], estimated_sources[i])
-                estimated_mixtures[i] = estimated_mixture
+
+            # matmul broadcast A_tensor[idx_iter]
+            estimated_mixtures = torch.matmul(self.A_tensor[idx_iter], estimated_sources)
             
             # shape of estimated_mixtures(bs, 2, t)
             this_loss = LossSNR(estimated_mixtures[:, 0], m1) + LossSNR(estimated_mixtures[:, 1], m2)
             losses.append(this_loss)
 
-        return torch.argmin(torch.tensor(losses)), min(losses) # this line is just for testing
-        # return min(losses)
+        return torch.argmin(torch.tensor(losses)), torch.tensor(min(losses))
 
 
 def test_mixit_loss():
-    y = torch.tensor([[1.,2.,3.,4.], [2.,3.,4.,5.]])
+    y = torch.tensor([[1.,2.,3.,4.], [2.,3.,4.,5.], [1.,2.,3.,4.], [2.,3.,4.,5.]])
     print(LossSNR(y, y))
-    y_pred = torch.tensor([[2.,3.,4.,5.], [3.,4.,5.,6.]])
+    y_pred = torch.tensor([[2.,3.,4.,5.], [3.,4.,5.,6.], [2.,3.,4.,5.], [3.,4.,5.,6.]])
     print(LossSNR(y, y_pred))
 
     loss = MixITLoss(2)
