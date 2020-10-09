@@ -9,6 +9,7 @@ from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH
 import self_supervised_separation.dataloaders.libri2mix as libri2mix_loader
 import self_supervised_separation.dataloaders.wham as wham_loader
 
+
 def create_loader_for_simple_dataset(dataset_name=None,
                                      separation_task=None,
                                      data_split=None,
@@ -46,6 +47,7 @@ def create_loader_for_simple_dataset(dataset_name=None,
         root_dirpath=root_path, task=separation_task,
         split=translated_split, sample_rate=sample_rate, timelength=timelegth,
         zero_pad=zero_pad, min_or_max=min_or_max,
+        augment='tr' in data_split,
         normalize_audio=normalize_audio, n_samples=n_samples)
     return data_loader
 
