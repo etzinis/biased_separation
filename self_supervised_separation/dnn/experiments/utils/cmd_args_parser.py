@@ -53,18 +53,20 @@ def get_args():
                         is going to be zero-padded""",
                         default='min',
                         choices=['min', 'max'])
-    parser.add_argument("--zero_pad_audio", type=bool,
+    parser.add_argument("--max_abs_snr", type=float,
+                        help="""The maximum absolute value of the SNR of 
+                                the mixtures.""", default=5.)
+    parser.add_argument("--zero_pad_audio", action='store_true',
                         help="""If a specific timelength is required all 
                         audio sources and mixtures are going to be zero 
                         padded in order to have the required length. If not 
                         and a specific timelegth is required then the files 
                         with less than required legth are not going to be 
-                        used.""",
-                        default=True)
-    parser.add_argument("--normalize_audio", type=bool,
+                        used.""", default=False)
+    parser.add_argument("--normalize_audio", action='store_true',
                         help="""Normalize using mean and standard deviation 
                         before processing each audio file.""",
-                        default=True)
+                        default=False)
     # ===============================================
     # Separation task arguments
     parser.add_argument("--separation_task", type=str,
@@ -83,9 +85,9 @@ def get_args():
                                 the validation samples""", default=4)
     parser.add_argument("--n_epochs", type=int,
                         help="""The number of epochs that the 
-                            experiment should run""", default=50)
+                            experiment should run""", default=500)
     parser.add_argument("-lr", "--learning_rate", type=float,
-                        help="""Initial Learning rate""", default=1e-2)
+                        help="""Initial Learning rate""", default=1e-3)
     parser.add_argument("--divide_lr_by", type=float,
                         help="""The factor that the learning rate 
                             would be divided by""", default=1.)
@@ -95,6 +97,15 @@ def get_args():
                             rate is not going to be divided by the 
                             specified factor.""",
                         default=0)
+    parser.add_argument("--optimizer", type=str,
+                        help="""The optimizer that you want to use""",
+                        default="adam",
+                        choices=['adam', 'radam'])
+    parser.add_argument("--clip_grad_norm", type=float,
+                        help="""The norm value which all gradients 
+                            are going to be clipped, 0 means that no 
+                            grads are going to be clipped""",
+                        default=5.)
     parser.add_argument("-fs", type=int,
                         help="""Sampling rate of the audio.""", default=8000)
     # ===============================================
@@ -146,7 +157,7 @@ def get_args():
                              "effectively downsampling inside each U-Block. "
                              "The aggregation of all scales is performed by "
                              "addition.",
-                        default=3)
+                        default=5)
     parser.add_argument("--enc_kernel_size", type=int,
                         help="The width of the encoder and decoder kernels.",
                         default=21)
