@@ -14,6 +14,7 @@ import self_supervised_separation.dataloaders.abstract_dataset as \
     abstract_dataset
 from scipy.io import wavfile
 from tqdm import tqdm
+from time import time
 
 EPS = 1e-8
 enh_single = {'mixture': 'mix_single',
@@ -66,6 +67,9 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
         self.zero_pad = self.get_arg_and_check_validness(
             'zero_pad', known_type=bool)
+
+        self.augment = self.get_arg_and_check_validness(
+            'augment', known_type=bool)
 
         self.normalize_audio = self.get_arg_and_check_validness(
             'normalize_audio', known_type=bool)
@@ -159,14 +163,27 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
         return len(self.file_names)
 
     def __getitem__(self, idx):
+        if self.augment:
+            the_time = int(np.modf(time())[0] * 100000000)
+            np.random.seed(the_time)
+
         filename = self.file_names[idx]
 
         mixture_path = os.path.join(self.dataset_dirpath,
                                     WHAM_TASKS[self.task]['mixture'],
                                     filename)
         _, waveform = wavfile.read(mixture_path)
+        max_len = len(waveform)
+        rand_start = 0
+        if self.augment and max_len > self.time_samples:
+            rand_start = np.random.randint(0, max_len - self.time_samples)
+            waveform = waveform[rand_start:rand_start+self.time_samples]
         mixture_wav = np.array(waveform)
         mixture_wav = torch.tensor(mixture_wav, dtype=torch.float32)
+        # First normalize the mixture and then pad
+        if self.normalize_audio:
+            print('I GO')
+            mixture_wav = normalize_tensor_wav(mixture_wav)
         mixture_wav = self.safe_pad(mixture_wav)
 
         sources_list = []
@@ -178,8 +195,12 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
             except Exception as e:
                 print(e)
                 raise IOError('could not load file from: {}'.format(source_path))
+            waveform = waveform[rand_start:rand_start + self.time_samples]
             numpy_wav = np.array(waveform)
             source_wav = torch.tensor(numpy_wav, dtype=torch.float32)
+            # First normalize the mixture and then pad
+            if self.normalize_audio:
+                source_wav = normalize_tensor_wav(source_wav)
             source_wav = self.safe_pad(source_wav)
             sources_list.append(source_wav)
 
