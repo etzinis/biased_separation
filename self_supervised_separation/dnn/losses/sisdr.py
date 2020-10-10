@@ -91,7 +91,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
         self.improvement = improvement
         self.n_sources = n_sources
         self.return_individual_results = return_individual_results
-        self.var_weight=var_weight
+        self.var_weight = var_weight
 
     def normalize_input(self, pr_batch, t_batch, initial_mixtures=None):
         min_len = min(pr_batch.shape[-1],
@@ -130,6 +130,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
     def compute_sisnr(self,
                       pr_batch,
                       t_batch,
+                      epoch_count,
                       initial_mixtures=None,
                       eps=10e-8):
 
@@ -143,40 +144,63 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                                                  t_t_diag, eps=eps)
             sisnr_l.append(sisnr)
         all_sisnrs = torch.cat(sisnr_l, -1)
+
         best_sisdr = torch.max(all_sisnrs.mean(-2), -1)[0]
+
+        best_perm_idxs = torch.max(all_sisnrs.mean(-2), -1)[1]
+        # reshape indices to gather the corresponding columns/permutations
+        best_perm_idxs = best_perm_idxs.repeat_interleave(self.n_sources)
+        best_perm_idxs = best_perm_idxs.reshape(self.bs, self.n_sources, 1)
+        sources_sisdr = torch.gather(all_sisnrs, -1, best_perm_idxs)
 
         if self.improvement:
             initial_mix = initial_mixtures.repeat(1, self.n_sources, 1)
             base_sisdr = self.compute_permuted_sisnrs(initial_mix,
                                                       t_batch,
                                                       t_t_diag, eps=eps)
-            best_sisdr -= base_sisdr.mean([-2, -1])
 
-        running_mean = best_sisdr.mean()
+            sources_sisdr -= base_sisdr
+
+        sources_sisdr = sources_sisdr.flatten(0)
+
+        running_mean = sources_sisdr.mean()
         print(running_mean)
-        print(best_sisdr)
+        print(sources_sisdr)
         # var_loss = torch.mean((best_sisdr - running_mean)**2, dim=-1)
-        weights = torch.zeros_like(best_sisdr)
-        weights[torch.argmin(best_sisdr)] = 1.
-        var_loss = torch.sum(weights * best_sisdr)
+        weights = torch.zeros_like(sources_sisdr)
+        weights[torch.argmin(sources_sisdr)] = 1.
+        var_loss = torch.sum(weights * sources_sisdr)
         print(var_loss)
 
         # if self.reweighted is not None:
-        #     print(best_sisdr.mean())
-        #     new_weights = torch.softmax(- best_sisdr / 20., 0)
-        #     best_sisdr = new_weights * best_sisdr
-        #     print(best_sisdr)
+
+        print(sources_sisdr.mean())
+        print("Epoch count: ", epoch_count)
+
+        # log
+        # softmax_param = torch.max(torch.tensor(2.), 40-17*torch.log(torch.tensor((1. * (epoch_count + 1)))))
+        # 1/x
+        # softmax_param = torch.tensor(1. + 35. / (epoch_count + 1))
+        # linear
+        softmax_param = torch.max(torch.tensor(2.),
+                                  torch.tensor(20. - (epoch_count + 1)))
+
+        print("Softmax param: ", softmax_param)
+        new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+        sources_sisdr = new_weights * sources_sisdr
+        print(sources_sisdr)
 
         if not self.return_individual_results:
-            best_sisdr = best_sisdr.mean()
+            sources_sisdr = sources_sisdr.mean()  # mean
 
         if self.backward_loss:
-            return - best_sisdr - self.var_weight * var_loss
-        return best_sisdr
+            return - sources_sisdr - self.var_weight * var_loss
+        return sources_sisdr  # 2 sources
 
     def forward(self,
                 pr_batch,
                 t_batch,
+                epoch_count,
                 eps=1e-9,
                 initial_mixtures=None):
         """!
@@ -197,6 +221,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
 
         sisnr_l = self.compute_sisnr(pr_batch,
                                      t_batch,
+                                     epoch_count=epoch_count,
                                      eps=eps,
                                      initial_mixtures=initial_mixtures)
 
@@ -214,8 +239,7 @@ class PermInvariantSISDR(nn.Module):
                  n_sources=None,
                  backward_loss=True,
                  improvement=False,
-                 return_individual_results=False,
-                 reweighted=None):
+                 return_individual_results=False):
         """
         Initialization for the results and torch tensors that might
         be used afterwards
@@ -233,7 +257,6 @@ class PermInvariantSISDR(nn.Module):
         self.improvement = improvement
         self.n_sources = n_sources
         self.return_individual_results = return_individual_results
-        self.reweighted=reweighted
 
     def normalize_input(self, pr_batch, t_batch, initial_mixtures=None):
         min_len = min(pr_batch.shape[-1],
@@ -285,27 +308,26 @@ class PermInvariantSISDR(nn.Module):
                                                  t_t_diag, eps=eps)
             sisnr_l.append(sisnr)
         all_sisnrs = torch.cat(sisnr_l, -1)
-        best_sisdr = torch.max(all_sisnrs.mean(-2), -1)[0]
+
+        best_perm_idxs = torch.max(all_sisnrs.mean(-2), -1)[1]
+        # reshape indices to gather the corresponding columns/permutations
+        best_perm_idxs = best_perm_idxs.repeat_interleave(self.n_sources)
+        best_perm_idxs = best_perm_idxs.reshape(self.bs, self.n_sources, 1)
+        best_sisdr = torch.gather(all_sisnrs, -1, best_perm_idxs)
 
         if self.improvement:
             initial_mix = initial_mixtures.repeat(1, self.n_sources, 1)
             base_sisdr = self.compute_permuted_sisnrs(initial_mix,
                                                       t_batch,
                                                       t_t_diag, eps=eps)
-            best_sisdr -= base_sisdr.mean([-2, -1])
-
-        if self.reweighted is not None:
-            print(best_sisdr.mean())
-            new_weights = torch.softmax(- best_sisdr / 20., 0)
-            best_sisdr = new_weights * best_sisdr
-            print(best_sisdr)
+            best_sisdr -= base_sisdr
 
         if not self.return_individual_results:
-            best_sisdr = best_sisdr.sum()
+            best_sisdr = best_sisdr.mean()
 
         if self.backward_loss:
             return - best_sisdr
-        return best_sisdr
+        return best_sisdr.reshape(-1)
 
     def forward(self,
                 pr_batch,
