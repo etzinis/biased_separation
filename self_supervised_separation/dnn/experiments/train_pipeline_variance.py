@@ -53,12 +53,18 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(
 
 back_loss_tr_loss_name, back_loss_tr_loss = (
     'tr_back_loss_SISDRi',
+    # sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
+    #                              n_sources=hparams['n_sources'],
+    #                              zero_mean=True,
+    #                              backward_loss=True,
+    #                              improvement=True)
     sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
                                             n_sources=hparams['n_sources'],
                                             zero_mean=True,
                                             backward_loss=True,
                                             improvement=True,
-                                            var_weight=0.0))
+                                            var_weight=0.0)
+)
 
 val_losses = {}
 all_losses = []
@@ -159,6 +165,7 @@ for i in range(hparams['n_epochs']):
 
         l = back_loss_tr_loss(rec_sources_wavs,
                               clean_wavs,
+                              epoch_count=i,
                               initial_mixtures=m1wavs.unsqueeze(1))
         if hparams['clip_grad_norm'] > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(),
