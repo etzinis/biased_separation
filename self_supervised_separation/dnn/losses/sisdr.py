@@ -145,13 +145,11 @@ class HigherOrderPermInvariantSISDR(nn.Module):
             sisnr_l.append(sisnr)
         all_sisnrs = torch.cat(sisnr_l, -1)
 
-        best_sisdr = torch.max(all_sisnrs.mean(-2), -1)[0]
-
         best_perm_idxs = torch.max(all_sisnrs.mean(-2), -1)[1]
         # reshape indices to gather the corresponding columns/permutations
         best_perm_idxs = best_perm_idxs.repeat_interleave(self.n_sources)
         best_perm_idxs = best_perm_idxs.reshape(self.bs, self.n_sources, 1)
-        sources_sisdr = torch.gather(all_sisnrs, -1, best_perm_idxs)
+        best_sisdr = torch.gather(all_sisnrs, -1, best_perm_idxs)
 
         if self.improvement:
             initial_mix = initial_mixtures.repeat(1, self.n_sources, 1)
@@ -159,43 +157,29 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                                                       t_batch,
                                                       t_t_diag, eps=eps)
 
-            sources_sisdr -= base_sisdr
+            best_sisdr -= base_sisdr
 
-        sources_sisdr = sources_sisdr.flatten(0)
-
-        running_mean = sources_sisdr.mean()
-        print(running_mean)
-        print(sources_sisdr)
-        # var_loss = torch.mean((best_sisdr - running_mean)**2, dim=-1)
-        weights = torch.zeros_like(sources_sisdr)
-        weights[torch.argmin(sources_sisdr)] = 1.
-        var_loss = torch.sum(weights * sources_sisdr)
-        print(var_loss)
-
-        # if self.reweighted is not None:
-
-        print(sources_sisdr.mean())
-        print("Epoch count: ", epoch_count)
+        sources_sisdr = best_sisdr.flatten(0)
 
         # log
-        # softmax_param = torch.max(torch.tensor(2.), 40-17*torch.log(torch.tensor((1. * (epoch_count + 1)))))
+        softmax_param = torch.max(
+            torch.tensor(2.),
+            40-17*torch.log(torch.tensor((1. * (epoch_count + 1)))))
         # 1/x
         # softmax_param = torch.tensor(1. + 35. / (epoch_count + 1))
         # linear
-        softmax_param = torch.max(torch.tensor(2.),
-                                  torch.tensor(20. - (epoch_count + 1)))
+        # softmax_param = torch.max(torch.tensor(2.),
+        #                           torch.tensor(20. - (epoch_count + 1)))
 
-        print("Softmax param: ", softmax_param)
         new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
         sources_sisdr = new_weights * sources_sisdr
-        print(sources_sisdr)
 
         if not self.return_individual_results:
-            sources_sisdr = sources_sisdr.mean()  # mean
+            sources_sisdr = sources_sisdr.sum()  # mean
 
         if self.backward_loss:
-            return - sources_sisdr - self.var_weight * var_loss
-        return sources_sisdr  # 2 sources
+            return - sources_sisdr
+        return best_sisdr.reshape(-1)
 
     def forward(self,
                 pr_batch,
