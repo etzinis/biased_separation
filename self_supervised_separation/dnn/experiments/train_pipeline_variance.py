@@ -80,7 +80,8 @@ for val_set in [x for x in generators if not x == 'train']:
 all_losses.append(back_loss_tr_loss_name)
 
 histogram_names = ['tr_input_snr']
-for val_set in [x for x in generators if not x == 'train']:
+eval_generators_names = [x for x in generators if not x == 'train']
+for val_set in eval_generators_names:
     if generators[val_set] is None:
         continue
     histogram_names += [
@@ -175,7 +176,6 @@ for i in range(hparams['n_epochs']):
                                            hparams['clip_grad_norm'])
         l.backward()
         opt.step()
-        break
 
     if hparams['reduce_lr_every'] > 0:
         if tr_step % hparams['reduce_lr_every'] == 0:
@@ -200,9 +200,16 @@ for i in range(hparams['n_epochs']):
                     m1wavs = torch.sum(clean_wavs, dim=1)
                     m1wavs = normalize_tensor_wav(m1wavs)
 
-                    histograms_dic[val_set+'_input_snr'] += (10. * torch.log10(
+                    input_snr_tensor = 10. * torch.log10(
                         (clean_wavs[:, 0] ** 2).sum(-1) / (1e-8 + (
-                                clean_wavs[:, 1] ** 2).sum(-1)))).tolist()
+                                clean_wavs[:, 1] ** 2).sum(-1)))
+                    input_snr_first = input_snr_tensor.tolist()
+                    input_snr_second = (-input_snr_tensor).tolist()
+                    histograms_dic[val_set + '_input_snr'] += [
+                        val
+                        for pair in zip(input_snr_first, input_snr_second)
+                        for val in pair]
+
 
                     rec_sources_wavs = model(m1wavs.unsqueeze(1))
 
@@ -216,7 +223,6 @@ for i in range(hparams['n_epochs']):
                         res_dic[loss_name+'i']['acc'] += improvements_in_list
                         histograms_dic[loss_name] += values_in_list
                         histograms_dic[loss_name+'i'] += improvements_in_list
-
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 
@@ -226,6 +232,15 @@ for i in range(hparams['n_epochs']):
         res_dic, experiment, tr_step, val_step)
     cometml_report.report_histograms(
         histograms_dic, experiment, tr_step, val_step)
+    scatter_lists = []
+    for val_set in eval_generators_names:
+        for suffix in ['', 'i']:
+            scatter_lists.append([(val_set + '_input_snr',
+                             histograms_dic[val_set + '_input_snr']),
+                            (val_set + '_SISDR' + suffix,
+                             histograms_dic[val_set + '_SISDR' + suffix])])
+    cometml_report.report_scatterplots(
+        scatter_lists, experiment, tr_step, val_step)
 
 #
 #     # model_class.save_if_best(

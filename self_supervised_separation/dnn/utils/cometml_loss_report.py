@@ -6,6 +6,55 @@
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+
+def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
+    if len(x_data) != len(y_data):
+        import pdb; pdb.set_trace()
+    plt.figure()
+    plt.scatter(x_data, y_data, alpha=0.5)
+    plt.ylabel(y_name, fontsize=24)
+    plt.xlabel(x_name, fontsize=24)
+    x_lim = plt.xlim()
+    if y_name.endswith('i'):
+        plt.plot(x_lim, [0, 0], 'k-', color='r')
+    else:
+        plt.plot(x_lim, x_lim, 'k-', color='r')
+    figpath = os.path.join('/tmp', prefix+x_name+y_name+'.png')
+    plt.savefig(figpath, dpi=150, bbox_inches='tight')
+    return figpath
+
+
+def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
+    """Only reports metrics"""
+    prefix = experiment.get_key()
+    for x_data, y_data in scatterplots_list:
+        x_name, x_data_in_list =  x_data
+        y_name, y_data_in_list =  y_data
+        if 'val' in x_name or 'test' in x_name:
+            with experiment.validate():
+                path = create_new_scatterplot(x_name, x_data_in_list,
+                                              y_name, y_data_in_list,
+                                              prefix=prefix)
+                experiment.log_image(
+                    path, name=y_name,  overwrite=False,
+                    image_format="png", image_scale=1.0, image_shape=None,
+                    image_colormap=None, image_minmax=None,
+                    image_channels="last", copy_to_tmp=True, step=val_step)
+        elif 'tr' in x_name:
+            with experiment.train():
+                path = create_new_scatterplot(x_name, x_data, y_name, y_data,
+                                              prefix=prefix)
+                experiment.log_image(
+                    path, name=y_name, overwrite=False,
+                    image_format="png", image_scale=1.0, image_shape=None,
+                    image_colormap=None, image_minmax=None,
+                    image_channels="last", copy_to_tmp=True, step=tr_step)
+        else:
+            raise ValueError("tr or val or test must be in metric name <{}>."
+                             "".format(x_name))
 
 
 def report_histograms(histograms_dict, experiment, tr_step, val_step):
