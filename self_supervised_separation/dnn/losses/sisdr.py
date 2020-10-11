@@ -172,10 +172,11 @@ class HigherOrderPermInvariantSISDR(nn.Module):
         #                           torch.tensor(20. - (epoch_count + 1)))
 
         new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+        new_weights = new_weights.detach()
         sources_sisdr = new_weights * sources_sisdr
 
         if not self.return_individual_results:
-            sources_sisdr = sources_sisdr.sum()  # mean
+            sources_sisdr = sources_sisdr.sum()
 
         if self.backward_loss:
             return - sources_sisdr
@@ -299,19 +300,20 @@ class PermInvariantSISDR(nn.Module):
         best_perm_idxs = best_perm_idxs.reshape(self.bs, self.n_sources, 1)
         best_sisdr = torch.gather(all_sisnrs, -1, best_perm_idxs)
 
+        sisdr_improvement = best_sisdr
         if self.improvement:
             initial_mix = initial_mixtures.repeat(1, self.n_sources, 1)
             base_sisdr = self.compute_permuted_sisnrs(initial_mix,
                                                       t_batch,
                                                       t_t_diag, eps=eps)
-            best_sisdr -= base_sisdr
+            sisdr_improvement = best_sisdr - base_sisdr
 
         if not self.return_individual_results:
-            best_sisdr = best_sisdr.mean()
+            sisdr_improvement = sisdr_improvement.mean()
 
         if self.backward_loss:
-            return - best_sisdr
-        return best_sisdr.reshape(-1)
+            return - sisdr_improvement
+        return best_sisdr.reshape(-1), sisdr_improvement.reshape(-1)
 
     def forward(self,
                 pr_batch,

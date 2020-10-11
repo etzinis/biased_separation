@@ -53,17 +53,17 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(
 
 back_loss_tr_loss_name, back_loss_tr_loss = (
     'tr_back_loss_SISDRi',
-    # sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
-    #                              n_sources=hparams['n_sources'],
-    #                              zero_mean=True,
-    #                              backward_loss=True,
-    #                              improvement=True)
-    sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
-                                            n_sources=hparams['n_sources'],
-                                            zero_mean=True,
-                                            backward_loss=True,
-                                            improvement=True,
-                                            var_weight=0.0)
+    sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
+                                 n_sources=hparams['n_sources'],
+                                 zero_mean=True,
+                                 backward_loss=True,
+                                 improvement=True)
+    # sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
+    #                                         n_sources=hparams['n_sources'],
+    #                                         zero_mean=True,
+    #                                         backward_loss=True,
+    #                                         improvement=True,
+    #                                         var_weight=0.0)
 )
 
 val_losses = {}
@@ -72,8 +72,8 @@ for val_set in [x for x in generators if not x == 'train']:
     if generators[val_set] is None:
         continue
     val_losses[val_set] = {}
-    all_losses.append(val_set + '_SISDRi')
-    val_losses[val_set][val_set + '_SISDRi'] = sisdr_lib.PermInvariantSISDR(
+    all_losses.append(val_set + '_SISDR')
+    val_losses[val_set][val_set + '_SISDR'] = sisdr_lib.PermInvariantSISDR(
         batch_size=hparams['batch_size'], n_sources=hparams['n_sources'],
         zero_mean=True, backward_loss=False, improvement=True,
         return_individual_results=True)
@@ -83,7 +83,8 @@ histogram_names = ['tr_input_snr']
 for val_set in [x for x in generators if not x == 'train']:
     if generators[val_set] is None:
         continue
-    histogram_names += [val_set+'_input_snr', val_set+'_SISDRi']
+    histogram_names += [
+        val_set+'_input_snr', val_set+'_SISDRi', val_set+'_SISDR']
 
 model = sudormrf.SuDORMRF(out_channels=hparams['out_channels'],
                           in_channels=hparams['in_channels'],
@@ -129,8 +130,10 @@ for i in range(hparams['n_epochs']):
     histograms_dic = {}
     for loss_name in all_losses:
         res_dic[loss_name] = {'mean': 0., 'std': 0., 'acc': []}
+        res_dic[loss_name+'i'] = {'mean': 0., 'std': 0., 'acc': []}
     for hist_name in histogram_names:
         histograms_dic[hist_name] = []
+        histograms_dic[hist_name+'i'] = []
     print("Higher Order Sudo-RM-RF: {} - {} || Epoch: {}/{}".format(
         experiment.get_key(), experiment.get_tags(), i+1, hparams['n_epochs']))
     model.train()
@@ -165,13 +168,14 @@ for i in range(hparams['n_epochs']):
 
         l = back_loss_tr_loss(rec_sources_wavs,
                               clean_wavs,
-                              epoch_count=i,
+                              # epoch_count=i,
                               initial_mixtures=m1wavs.unsqueeze(1))
         if hparams['clip_grad_norm'] > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(),
                                            hparams['clip_grad_norm'])
         l.backward()
         opt.step()
+        break
 
     if hparams['reduce_lr_every'] > 0:
         if tr_step % hparams['reduce_lr_every'] == 0:
@@ -203,12 +207,15 @@ for i in range(hparams['n_epochs']):
                     rec_sources_wavs = model(m1wavs.unsqueeze(1))
 
                     for loss_name, loss_func in val_losses[val_set].items():
-                        l = loss_func(rec_sources_wavs,
+                        l, l_improvement = loss_func(rec_sources_wavs,
                                       clean_wavs,
                                       initial_mixtures=m1wavs.unsqueeze(1))
                         values_in_list = l.tolist()
+                        improvements_in_list = l_improvement.tolist()
                         res_dic[loss_name]['acc'] += values_in_list
+                        res_dic[loss_name+'i']['acc'] += improvements_in_list
                         histograms_dic[loss_name] += values_in_list
+                        histograms_dic[loss_name+'i'] += improvements_in_list
 
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
