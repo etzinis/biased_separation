@@ -24,37 +24,51 @@ def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
         plt.plot(x_lim, x_lim, 'k-', color='r')
     figpath = os.path.join('/tmp', prefix+x_name+y_name+'.png')
     plt.savefig(figpath, dpi=150, bbox_inches='tight')
+    plt.close()
     return figpath
 
 
 def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
     """Only reports metrics"""
-    prefix = experiment.get_key()
-    for x_data, y_data in scatterplots_list:
-        x_name, x_data_in_list =  x_data
-        y_name, y_data_in_list =  y_data
-        if 'val' in x_name or 'test' in x_name:
-            with experiment.validate():
-                path = create_new_scatterplot(x_name, x_data_in_list,
-                                              y_name, y_data_in_list,
-                                              prefix=prefix)
-                experiment.log_image(
-                    path, name=y_name,  overwrite=False,
-                    image_format="png", image_scale=1.0, image_shape=None,
-                    image_colormap=None, image_minmax=None,
-                    image_channels="last", copy_to_tmp=True, step=val_step)
-        elif 'tr' in x_name:
-            with experiment.train():
-                path = create_new_scatterplot(x_name, x_data, y_name, y_data,
-                                              prefix=prefix)
-                experiment.log_image(
-                    path, name=y_name, overwrite=False,
-                    image_format="png", image_scale=1.0, image_shape=None,
-                    image_colormap=None, image_minmax=None,
-                    image_channels="last", copy_to_tmp=True, step=tr_step)
-        else:
-            raise ValueError("tr or val or test must be in metric name <{}>."
-                             "".format(x_name))
+    exp_id = experiment.get_key()
+    # Subsample for better visualization.
+    subsampling_factors = [2, 4, 8]
+    for factor in subsampling_factors:
+        prefix = exp_id + 'subsample' + str(factor)
+        for x_data, y_data in scatterplots_list:
+            x_name, x_data_in_list =  x_data
+            y_name, y_data_in_list =  y_data
+            x_data_in_numpy = np.array(x_data_in_list)
+            n_samples = int(x_data_in_numpy.shape[0] / factor)
+            x_data_in_numpy = x_data_in_numpy[::factor]
+            y_data_in_numpy = np.array(y_data_in_list)
+            y_data_in_numpy = y_data_in_numpy[::factor]
+
+            if 'val' in x_name or 'test' in x_name:
+                with experiment.validate():
+                    path = create_new_scatterplot(x_name, x_data_in_numpy,
+                                                  y_name, y_data_in_numpy,
+                                                  prefix=prefix)
+                    experiment.log_image(
+                        path, name=y_name+'n_samples_'+str(n_samples),
+                        overwrite=False,
+                        image_format="png", image_scale=1.0, image_shape=None,
+                        image_colormap=None, image_minmax=None,
+                        image_channels="last", copy_to_tmp=True, step=val_step)
+            elif 'tr' in x_name:
+                with experiment.train():
+                    path = create_new_scatterplot(x_name, x_data_in_numpy,
+                                                  y_name, y_data_in_numpy,
+                                                  prefix=prefix)
+                    experiment.log_image(
+                        path, name=y_name+'n_samples_'+str(n_samples),
+                        overwrite=False,
+                        image_format="png", image_scale=1.0, image_shape=None,
+                        image_colormap=None, image_minmax=None,
+                        image_channels="last", copy_to_tmp=True, step=tr_step)
+            else:
+                raise ValueError("tr or val or test must be in metric name <{}>."
+                                 "".format(x_name))
 
 
 def report_histograms(histograms_dict, experiment, tr_step, val_step):
