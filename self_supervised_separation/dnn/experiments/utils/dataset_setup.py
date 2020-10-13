@@ -81,7 +81,6 @@ def setup(hparams):
     # Create all generators
     generators = {}
     for data_split in ['train', 'val', 'test', 'train_val']:
-        print(data_split)
         if hparams[data_split] is None:
             generators[data_split] = None
             continue
