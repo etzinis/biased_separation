@@ -17,19 +17,19 @@ def get_args():
     parser.add_argument("--train", type=str, nargs='+',
                         help="Training dataset",
                         default=None,
-                        choices=['WHAM', 'LIBRI2MIX'])
+                        choices=['WHAM', 'LIBRI2MIX', 'ESC50'])
     parser.add_argument("--val", type=str, nargs='+',
                         help="Validation dataset",
                         default=None,
-                        choices=['WHAM', 'LIBRI2MIX'])
+                        choices=['WHAM', 'LIBRI2MIX', 'ESC50'])
     parser.add_argument("--test", type=str, nargs='+',
                         help="Test dataset",
                         default=None,
-                        choices=['WHAM', 'LIBRI2MIX'])
+                        choices=['WHAM', 'LIBRI2MIX', 'ESC50'])
     parser.add_argument("--train_val", type=str, nargs='+',
                         help="Validation on the training data",
                         default=None,
-                        choices=['WHAM', 'LIBRI2MIX'])
+                        choices=['WHAM', 'LIBRI2MIX', 'ESC50'])
     parser.add_argument("--n_train", type=int,
                         help="""Reduce the number of training 
                                 samples to this number.""", default=0)
