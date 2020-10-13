@@ -82,7 +82,8 @@ for val_set in [x for x in generators if not x == 'train']:
 all_losses.append(back_loss_tr_loss_name)
 
 histogram_names = ['tr_input_snr']
-eval_generators_names = [x for x in generators if not x == 'train']
+eval_generators_names = [x for x in generators
+                         if not x == 'train' and generators[x] is not None]
 for val_set in eval_generators_names:
     if generators[val_set] is None:
         continue
@@ -178,7 +179,6 @@ for i in range(hparams['n_epochs']):
                                            hparams['clip_grad_norm'])
         l.backward()
         opt.step()
-        break
 
     if hparams['reduce_lr_every'] > 0:
         if tr_step % hparams['reduce_lr_every'] == 0:
@@ -226,7 +226,6 @@ for i in range(hparams['n_epochs']):
                         res_dic[loss_name+'i']['acc'] += improvements_in_list
                         histograms_dic[loss_name] += values_in_list
                         histograms_dic[loss_name+'i'] += improvements_in_list
-                    break
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 
