@@ -5,9 +5,11 @@
 @copyright University of Illinois at Urbana-Champaign
 """
 
-from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH
+import os
+from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH, ESC50_ROOT_PATH
 import self_supervised_separation.dataloaders.libri2mix as libri2mix_loader
 import self_supervised_separation.dataloaders.wham as wham_loader
+import self_supervised_separation.dataloaders.augmented_mix_dataloader as augmented_mix_dataloader
 
 
 def create_loader_for_simple_dataset(dataset_name=None,
@@ -18,7 +20,10 @@ def create_loader_for_simple_dataset(dataset_name=None,
                                      zero_pad=None,
                                      timelegth=None,
                                      normalize_audio=None,
-                                     n_samples=None):
+                                     n_samples=None,
+                                     batch_size=None,
+                                     num_workers=None,
+                                     max_abs_snr=None):
     translated_split = None
 
     if dataset_name == 'WHAM':
@@ -26,6 +31,27 @@ def create_loader_for_simple_dataset(dataset_name=None,
         root_path = WHAM_ROOT_PATH
         translator = {'train': 'tr', 'test': 'tt', 'val': 'cv'}
         translated_split = translator[data_split]
+    elif dataset_name == 'ESC50':
+        if data_split == 'train':
+            fixed_seed = 0
+        elif data_split == 'test':
+            fixed_seed = 8
+        else:
+            fixed_seed = 9
+        data_loader = augmented_mix_dataloader.AugmentedOnlineMixingDataset(
+            input_dataset_p=[os.path.join(ESC50_ROOT_PATH, data_split)],
+            datasets_priors=[1.],
+            batch_size=batch_size,
+            n_jobs=num_workers,
+            n_samples=n_samples,
+            return_items=['wav'],
+            fs=float(sample_rate),
+            selected_timelength=timelegth,
+            n_sources=2,
+            normalize_audio=normalize_audio,
+            max_abs_snr=max_abs_snr,
+            fixed_seed=fixed_seed)
+        return data_loader
     elif dataset_name == 'LIBRI2MIX':
         loader = libri2mix_loader
         root_path = LIBRI2MIX_ROOT_PATH
@@ -55,6 +81,7 @@ def setup(hparams):
     # Create all generators
     generators = {}
     for data_split in ['train', 'val', 'test', 'train_val']:
+        print(data_split)
         if hparams[data_split] is None:
             generators[data_split] = None
             continue
@@ -72,7 +99,10 @@ def setup(hparams):
                     zero_pad=hparams['zero_pad_audio'],
                     timelegth=hparams['audio_timelength'],
                     normalize_audio=hparams['normalize_audio'],
-                    n_samples=hparams['n_'+data_split])
+                    n_samples=hparams['n_'+data_split],
+                    batch_size=hparams['batch_size'],
+                    num_workers=hparams['n_jobs'],
+                    max_abs_snr=hparams['max_abs_snr'])
         generators[data_split] = loader.get_generator(
             batch_size=hparams['batch_size'], num_workers=hparams['n_jobs'])
 
