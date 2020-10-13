@@ -21,6 +21,8 @@ import self_supervised_separation.dnn.experiments.utils.dataset_setup as dataset
 import self_supervised_separation.dnn.losses.sisdr as sisdr_lib
 import self_supervised_separation.dnn.models.sudormrf as sudormrf
 import self_supervised_separation.dnn.utils.cometml_loss_report as cometml_report
+import self_supervised_separation.dnn.utils.metrics_logger as \
+    cometml_assets_logger
 import self_supervised_separation.dnn.utils.cometml_log_audio as cometml_audio_logger
 
 
@@ -53,17 +55,17 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(
 
 back_loss_tr_loss_name, back_loss_tr_loss = (
     'tr_back_loss_SISDRi',
-    sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
-                                 n_sources=hparams['n_sources'],
-                                 zero_mean=True,
-                                 backward_loss=True,
-                                 improvement=True)
-    # sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
-    #                                         n_sources=hparams['n_sources'],
-    #                                         zero_mean=True,
-    #                                         backward_loss=True,
-    #                                         improvement=True,
-    #                                         var_weight=0.0)
+    # sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
+    #                              n_sources=hparams['n_sources'],
+    #                              zero_mean=True,
+    #                              backward_loss=True,
+    #                              improvement=True)
+    sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
+                                            n_sources=hparams['n_sources'],
+                                            zero_mean=True,
+                                            backward_loss=True,
+                                            improvement=True,
+                                            var_weight=0.0)
 )
 
 val_losses = {}
@@ -169,13 +171,14 @@ for i in range(hparams['n_epochs']):
 
         l = back_loss_tr_loss(rec_sources_wavs,
                               clean_wavs,
-                              # epoch_count=i,
+                              epoch_count=i,
                               initial_mixtures=m1wavs.unsqueeze(1))
         if hparams['clip_grad_norm'] > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(),
                                            hparams['clip_grad_norm'])
         l.backward()
         opt.step()
+        break
 
     if hparams['reduce_lr_every'] > 0:
         if tr_step % hparams['reduce_lr_every'] == 0:
@@ -223,6 +226,7 @@ for i in range(hparams['n_epochs']):
                         res_dic[loss_name+'i']['acc'] += improvements_in_list
                         histograms_dic[loss_name] += values_in_list
                         histograms_dic[loss_name+'i'] += improvements_in_list
+                    break
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 
@@ -241,7 +245,11 @@ for i in range(hparams['n_epochs']):
                              histograms_dic[val_set + '_SISDR' + suffix])])
     cometml_report.report_scatterplots(
         scatter_lists, experiment, tr_step, val_step)
-
+    # Save all metrics as assets.
+    cometml_assets_logger.log_metrics(histograms_dic, '/tmp/', experiment,
+                                      tr_step, val_step)
+    cometml_assets_logger.log_metrics(res_dic, '/tmp/', experiment,
+                                      tr_step, val_step)
 #
 #     # model_class.save_if_best(
 #     #     hparams['tn_mask_dir'], model.module, opt, tr_step,
