@@ -161,14 +161,15 @@ class HigherOrderPermInvariantSISDR(nn.Module):
 
         sources_sisdr = best_sisdr.squeeze(-1)
         
-        T1, T2 = 0, 0
+        T1, T2 = 1, 0
         T = torch.ones(sources_sisdr.shape)
         T[:, 0] = T1
         T[:, 1] = T2
-
+        
+        T = T.flatten(0)
         new_weights = torch.softmax(T, 0).cuda()
 
-        sources_sisdr = new_weights * sources_sisdr
+        sources_sisdr = new_weights * sources_sisdr.flatten(0)
 
         if not self.return_individual_results:
             sources_sisdr = sources_sisdr.sum()

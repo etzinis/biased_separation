@@ -39,11 +39,21 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
         for x_data, y_data in scatterplots_list:
             x_name, x_data_in_list =  x_data
             y_name, y_data_in_list =  y_data
-            x_data_in_numpy = np.array(x_data_in_list)
-            n_samples = int(x_data_in_numpy.shape[0] / factor)
-            x_data_in_numpy = x_data_in_numpy[::factor]
-            y_data_in_numpy = np.array(y_data_in_list)
-            y_data_in_numpy = y_data_in_numpy[::factor]
+
+            x_data_in_numpy_speech = np.array(x_data_in_list[0::2])[::factor]
+            x_data_in_numpy_other = np.array(x_data_in_list[1::2])[::factor]
+            y_data_in_numpy_speech = np.array(y_data_in_list[0::2])[::factor]
+            y_data_in_numpy_other = np.array(y_data_in_list[1::2])[::factor]
+
+            n_samples = int(len(x_data_in_list) / factor)
+
+            x_data_in_numpy = np.empty((x_data_in_numpy_speech.size + x_data_in_numpy_other.size,), dtype=x_data_in_numpy_speech.dtype)
+            x_data_in_numpy[0::2] = x_data_in_numpy_speech
+            x_data_in_numpy[1::2] = x_data_in_numpy_other
+
+            y_data_in_numpy = np.empty((y_data_in_numpy_speech.size + y_data_in_numpy_other.size,), dtype=y_data_in_numpy_speech.dtype)
+            y_data_in_numpy[0::2] = y_data_in_numpy_speech
+            y_data_in_numpy[1::2] = y_data_in_numpy_other
 
             if 'val' in x_name or 'test' in x_name:
                 with experiment.validate():
@@ -107,7 +117,7 @@ def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
     for l_name in losses_dict:
         values = losses_dict[l_name]['acc']
         values_speech = values[0::2]
-        values_other = values[0::1]
+        values_other = values[1::2]
 
         mean_metric = np.mean(values)
         std_metric = np.std(values)
@@ -131,6 +141,12 @@ def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
                                       step=val_step)
                 experiment.log_metric(actual_name + '_std_other',
                                       std_metric_other,
+                                      step=val_step)
+                experiment.log_metric(actual_name + '_mean',
+                                      mean_metric,
+                                      step=val_step)
+                experiment.log_metric(actual_name + '_std',
+                                      std_metric,
                                       step=val_step)
 
         elif 'tr' in l_name:

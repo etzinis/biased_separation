@@ -239,7 +239,7 @@ for i in range(hparams['n_epochs']):
                                    experiment, step=val_step, tag=val_set)
 
     val_step += 1
-
+    
     res_dic = cometml_report.report_losses_mean_and_std(
         res_dic, experiment, tr_step, val_step)
     cometml_report.report_histograms(
