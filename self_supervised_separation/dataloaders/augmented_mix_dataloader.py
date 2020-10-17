@@ -298,8 +298,10 @@ class AugmentedOnlineMixingDataset(Dataset):
 
         # Select with a prior probability between the list of datasets
         for source_idx in range(self.n_sources):
-            dataset_idx = self.get_selected_dataset_index(
-                mixture_idx, source_idx)
+            # dataset_idx = self.get_selected_dataset_index(
+            #     mixture_idx, source_idx)
+
+            dataset_idx = source_idx
 
             # Avoid getting the same sound class inside the mixture
             not_equal_to = None

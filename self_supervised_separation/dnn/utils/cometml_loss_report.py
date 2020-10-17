@@ -14,7 +14,8 @@ def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
     if len(x_data) != len(y_data):
         import pdb; pdb.set_trace()
     plt.figure()
-    plt.scatter(x_data, y_data, alpha=0.5)
+    plt.scatter(x_data[0::2], y_data[0::2], alpha=0.5, color='green')
+    plt.scatter(x_data[1::2], y_data[1::2], alpha=0.5, color='blue')
     plt.ylabel(y_name, fontsize=24)
     plt.xlabel(x_name, fontsize=24)
     x_lim = plt.xlim()
@@ -105,18 +106,33 @@ def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
 
     for l_name in losses_dict:
         values = losses_dict[l_name]['acc']
+        values_speech = values[0::2]
+        values_other = values[0::1]
+
         mean_metric = np.mean(values)
         std_metric = np.std(values)
+
+        mean_metric_speech = np.mean(values_speech)
+        std_metric_speech = np.std(values_speech)
+        mean_metric_other = np.mean(values_other)
+        std_metric_other = np.std(values_other)
 
         if 'val' in l_name or 'test' in l_name:
             actual_name = l_name.replace('val_', '')
             with experiment.validate():
-                experiment.log_metric(actual_name + '_mean',
-                                      mean_metric,
+                experiment.log_metric(actual_name + '_mean_speech',
+                                      mean_metric_speech,
                                       step=val_step)
-                experiment.log_metric(actual_name + '_std',
-                                      std_metric,
+                experiment.log_metric(actual_name + '_std_speech',
+                                      std_metric_speech,
                                       step=val_step)
+                experiment.log_metric(actual_name + '_mean_other',
+                                      mean_metric_other,
+                                      step=val_step)
+                experiment.log_metric(actual_name + '_std_other',
+                                      std_metric_other,
+                                      step=val_step)
+
         elif 'tr' in l_name:
             actual_name = l_name.replace('tr_', '')
             with experiment.train():

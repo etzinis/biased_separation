@@ -138,17 +138,21 @@ for i in range(hparams['n_epochs']):
     for hist_name in histogram_names:
         histograms_dic[hist_name] = []
         histograms_dic[hist_name+'i'] = []
+        for c in ['_speech', '_other']:
+            histograms_dic[hist_name + c] = []
+            histograms_dic[hist_name+'i' + c] = []
     print("Higher Order Sudo-RM-RF: {} - {} || Epoch: {}/{}".format(
         experiment.get_key(), experiment.get_tags(), i+1, hparams['n_epochs']))
     model.train()
 
     for data in tqdm(generators['train'], desc='Training'):
         opt.zero_grad()
-        #m1wavs = data[0].cuda()
+        
+        m1wavs = data[0].cuda()
         clean_wavs = data[-1].cuda()
 
-        if hparams['max_abs_snr'] > 0.:
-            clean_wavs = mix_with_random_snr(clean_wavs, hparams['max_abs_snr'])
+        # if hparams['max_abs_snr'] > 0.:
+        #     clean_wavs = mix_with_random_snr(clean_wavs, hparams['max_abs_snr'])
 
         histograms_dic['tr_input_snr'] += (10. * torch.log10(
             (clean_wavs[:, 0] ** 2).sum(-1) / (1e-8 + (
@@ -156,15 +160,15 @@ for i in range(hparams['n_epochs']):
 
         # # Online mixing over samples of the batch. (This might cause to get
         # # utterances from the same speaker but it's highly improbable).
-        energies = torch.sum(clean_wavs**2, dim=-1, keepdim=True)
-        new_s1 = clean_wavs[:, 0, :]
-        new_s2 = clean_wavs[torch.randperm(hparams['batch_size']), 1, :]
-        new_s2 = new_s2 * torch.sqrt(energies[:, 1] /
-                                      (new_s2**2).sum(-1, keepdims=True))
+        # energies = torch.sum(clean_wavs**2, dim=-1, keepdim=True)
+        # new_s1 = clean_wavs[:, 0, :]
+        # new_s2 = clean_wavs[torch.randperm(hparams['batch_size']), 1, :]
+        # new_s2 = new_s2 * torch.sqrt(energies[:, 1] /
+        #                               (new_s2**2).sum(-1, keepdims=True))
 
-        m1wavs = normalize_tensor_wav(new_s1 + new_s2)
-        clean_wavs[:, 0, :] = normalize_tensor_wav(new_s1)
-        clean_wavs[:, 1, :] = normalize_tensor_wav(new_s2)
+        # m1wavs = normalize_tensor_wav(new_s1 + new_s2)
+        # clean_wavs[:, 0, :] = normalize_tensor_wav(new_s1)
+        # clean_wavs[:, 1, :] = normalize_tensor_wav(new_s2)
         # ===============================================
 
         # m1wavs = torch.sum(clean_wavs, dim=1)
@@ -194,14 +198,14 @@ for i in range(hparams['n_epochs']):
             model.eval()
             with torch.no_grad():
                 for data in tqdm(generators[val_set], desc='Validation'):
-                    # m1wavs = data[0].cuda()
+                    m1wavs = data[0].cuda()
                     clean_wavs = data[-1].cuda()
 
-                    if hparams['max_abs_snr'] > 0.:
-                        clean_wavs = mix_with_random_snr(clean_wavs,
-                                                         hparams['max_abs_snr'])
-                    m1wavs = torch.sum(clean_wavs, dim=1)
-                    m1wavs = normalize_tensor_wav(m1wavs)
+                    # if hparams['max_abs_snr'] > 0.:
+                    #     clean_wavs = mix_with_random_snr(clean_wavs,
+                    #                                      hparams['max_abs_snr'])
+                    # m1wavs = torch.sum(clean_wavs, dim=1)
+                    # m1wavs = normalize_tensor_wav(m1wavs)
 
                     input_snr_tensor = 10. * torch.log10(
                         (clean_wavs[:, 0] ** 2).sum(-1) / (1e-8 + (
@@ -220,12 +224,17 @@ for i in range(hparams['n_epochs']):
                         l, l_improvement = loss_func(rec_sources_wavs,
                                       clean_wavs,
                                       initial_mixtures=m1wavs.unsqueeze(1))
+
                         values_in_list = l.tolist()
+                        # print(l.tolist())
                         improvements_in_list = l_improvement.tolist()
                         res_dic[loss_name]['acc'] += values_in_list
                         res_dic[loss_name+'i']['acc'] += improvements_in_list
                         histograms_dic[loss_name] += values_in_list
                         histograms_dic[loss_name+'i'] += improvements_in_list
+                        for j, c in enumerate(['_speech', '_other']):
+                            histograms_dic[loss_name + c] += values_in_list[j::2]
+                            histograms_dic[loss_name+'i' + c] += improvements_in_list[j::2]
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 

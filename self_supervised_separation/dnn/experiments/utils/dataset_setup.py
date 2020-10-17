@@ -6,7 +6,7 @@
 """
 
 import os
-from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH, ESC50_ROOT_PATH
+from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH, ESC50_ROOT_PATH, WSJ_ROOT_PATH
 import self_supervised_separation.dataloaders.libri2mix as libri2mix_loader
 import self_supervised_separation.dataloaders.wham as wham_loader
 import self_supervised_separation.dataloaders.augmented_mix_dataloader as augmented_mix_dataloader
@@ -41,6 +41,27 @@ def create_loader_for_simple_dataset(dataset_name=None,
         data_loader = augmented_mix_dataloader.AugmentedOnlineMixingDataset(
             input_dataset_p=[os.path.join(ESC50_ROOT_PATH, data_split)],
             datasets_priors=[1.],
+            batch_size=batch_size,
+            n_jobs=num_workers,
+            n_samples=n_samples,
+            return_items=['wav'],
+            fs=float(sample_rate),
+            selected_timelength=timelegth,
+            n_sources=2,
+            normalize_audio=normalize_audio,
+            max_abs_snr=max_abs_snr,
+            fixed_seed=fixed_seed)
+        return data_loader
+    elif dataset_name == 'MIX':
+        if data_split == 'train':
+            fixed_seed = 0
+        elif data_split == 'test':
+            fixed_seed = 8
+        else:
+            fixed_seed = 9
+        data_loader = augmented_mix_dataloader.AugmentedOnlineMixingDataset(
+            input_dataset_p=[os.path.join(WSJ_ROOT_PATH, data_split), os.path.join(ESC50_ROOT_PATH, data_split)],
+            datasets_priors=[0.5, 0.5],
             batch_size=batch_size,
             n_jobs=num_workers,
             n_samples=n_samples,

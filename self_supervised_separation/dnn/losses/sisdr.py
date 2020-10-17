@@ -159,24 +159,20 @@ class HigherOrderPermInvariantSISDR(nn.Module):
 
             best_sisdr -= base_sisdr
 
-        sources_sisdr = best_sisdr.flatten(0)
+        sources_sisdr = best_sisdr.squeeze(-1)
+        
+        T1, T2 = 0, 0
+        T = torch.ones(sources_sisdr.shape)
+        T[:, 0] = T1
+        T[:, 1] = T2
 
-        # log
-        softmax_param = torch.max(
-            torch.tensor(2.),
-            40-17*torch.log(torch.tensor((1. * (epoch_count + 1)))))
-        # 1/x
-        # softmax_param = torch.tensor(1. + 35. / (epoch_count + 1))
-        # linear
-        # softmax_param = torch.max(torch.tensor(2.),
-        #                           torch.tensor(20. - (epoch_count + 1)))
+        new_weights = torch.softmax(T, 0).cuda()
 
-        new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
-        new_weights = new_weights.detach()
         sources_sisdr = new_weights * sources_sisdr
 
         if not self.return_individual_results:
             sources_sisdr = sources_sisdr.sum()
+            # sources_sisdr = sources_sisdr.mean()
 
         if self.backward_loss:
             return - sources_sisdr
