@@ -98,6 +98,9 @@ class AugmentedOnlineMixingDataset(Dataset):
         self.normalize_audio = self.get_arg_and_check_validness(
             'normalize_audio', known_type=bool)
 
+        self.return_dataset_indexes = self.get_arg_and_check_validness(
+            'return_dataset_indexes', known_type=bool)
+
         self.n_jobs = self.get_arg_and_check_validness(
                       'n_jobs',
                       known_type=int,
@@ -295,11 +298,13 @@ class AugmentedOnlineMixingDataset(Dataset):
         sources_wavs_l = []
         energies = []
         prev_indexes = []
+        dataset_indices = []
 
         # Select with a prior probability between the list of datasets
         for source_idx in range(self.n_sources):
             dataset_idx = self.get_selected_dataset_index(
                 mixture_idx, source_idx)
+            dataset_indices.append(dataset_idx)
 
             # Avoid getting the same sound class inside the mixture
             not_equal_to = None
@@ -349,9 +354,17 @@ class AugmentedOnlineMixingDataset(Dataset):
             returning_mixture = (mixture_tensor / (mixture_std +
                                                    10e-8)).squeeze()
             returning_sources = clean_sources_tensor / (mixture_std + 10e-8)
-            return returning_mixture, returning_sources
+            if self.return_dataset_indexes:
+                dataset_indices = torch.Tensor(dataset_indices)
+                return returning_mixture, returning_sources, dataset_indices
+            else:
+                return returning_mixture, returning_sources
         else:
-            return mixture_tensor.squeeze(), clean_sources_tensor
+            if self.return_dataset_indexes:
+                dataset_indices = torch.Tensor(dataset_indices)
+                return mixture_tensor.squeeze(), clean_sources_tensor, dataset_indices
+            else:
+                return mixture_tensor.squeeze(), clean_sources_tensor
 
 
 
