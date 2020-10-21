@@ -86,6 +86,56 @@ def report_histograms(histograms_dict, experiment, tr_step, val_step):
                              "".format(h_name))
 
 
+def report_losses_mean_and_std_combinations(
+        losses_dict, mask_dic, combs, experiment, tr_step, val_step):
+    rename_dic = ['speech', 'env_sound']
+
+    for l_name in losses_dict:
+        values_np = np.array(losses_dict[l_name]['acc'])
+        if l_name in mask_dic:
+            mask_np = np.array(mask_dic[l_name])
+        else:
+            continue
+        values_reshaped = values_np.reshape(-1, 2)
+        mask_np_reshaped = mask_np.reshape(-1, 2)
+
+        for comb in combs:
+            new_name = '+'.join([rename_dic[c] for c in comb])
+            values = values_reshaped.copy()
+            if len(comb) > 1:
+                values = values[
+                    (mask_np_reshaped[:, comb[0]]==comb[0]) *
+                    (mask_np_reshaped[:, comb[1]]==comb[1])]
+            else:
+                values = values_np[mask_np==comb[0]]
+
+            mean_metric = np.mean(values)
+            std_metric = np.std(values)
+
+            if 'val' in l_name or 'test' in l_name:
+                actual_name = l_name.replace('val_', '') + '_' + new_name
+                with experiment.validate():
+                    experiment.log_metric(actual_name + '_mean',
+                                          mean_metric,
+                                          step=val_step)
+                    experiment.log_metric(actual_name + '_std',
+                                          std_metric,
+                                          step=val_step)
+            elif 'tr' in l_name:
+                actual_name = l_name.replace('tr_', '') + '_' + new_name
+                with experiment.train():
+                    experiment.log_metric(actual_name + '_mean',
+                                          mean_metric,
+                                          step=tr_step)
+                    experiment.log_metric(actual_name + '_std',
+                                          std_metric,
+                                          step=tr_step)
+
+            else:
+                raise ValueError("tr or val or test must be in metric name <{}>."
+                                 "".format(l_name))
+
+
 def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
     """Wrapper for cometml loss report functionality.
 
