@@ -132,6 +132,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                       t_batch,
                       epoch_count,
                       initial_mixtures=None,
+                      mix_reweight=False,
                       eps=10e-8):
 
         t_t_diag = self.dot(t_batch, t_batch)
@@ -160,20 +161,31 @@ class HigherOrderPermInvariantSISDR(nn.Module):
             best_sisdr -= base_sisdr
 
         sources_sisdr = best_sisdr.squeeze(-1)
-        
-        T1, T2 = 1, 0
-        T = torch.ones(sources_sisdr.shape)
-        T[:, 0] = T1
-        T[:, 1] = T2
-        
-        T = T.flatten(0)
-        new_weights = torch.softmax(T, 0).cuda()
 
-        sources_sisdr = new_weights * sources_sisdr.flatten(0)
+        if mix_reweight:        
+            T1, T2 = 1, 0
+            T = torch.ones(sources_sisdr.shape)
+            T[:, 0] = T1
+            T[:, 1] = T2
+            
+            T = T.flatten(0)
+            new_weights = torch.softmax(T, 0).cuda()
+
+            sources_sisdr = new_weights * sources_sisdr.flatten(0)
+        else:
+            sources_sisdr = best_sisdr.flatten(0)
+
+            # const
+            softmax_param = torch.tensor(2.)
+            # linear
+            # softmax_param = torch.max(torch.tensor(2.), torch.tensor(20. - (epoch_count + 1)))
+
+            new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+            new_weights = new_weights.detach()
+            sources_sisdr = new_weights * sources_sisdr
 
         if not self.return_individual_results:
             sources_sisdr = sources_sisdr.sum()
-            # sources_sisdr = sources_sisdr.mean()
 
         if self.backward_loss:
             return - sources_sisdr
@@ -184,7 +196,8 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                 t_batch,
                 epoch_count,
                 eps=1e-9,
-                initial_mixtures=None):
+                initial_mixtures=None,
+                mix_reweight=False):
         """!
         :param pr_batch: Reconstructed wavs: Torch Tensors of size:
                          batch_size x self.n_sources x length_of_wavs
@@ -205,7 +218,8 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                                      t_batch,
                                      epoch_count=epoch_count,
                                      eps=eps,
-                                     initial_mixtures=initial_mixtures)
+                                     initial_mixtures=initial_mixtures,
+                                     mix_reweight=mix_reweight)
 
         return sisnr_l
 

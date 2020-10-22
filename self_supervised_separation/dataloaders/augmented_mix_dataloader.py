@@ -155,6 +155,11 @@ class AugmentedOnlineMixingDataset(Dataset):
             self.random_draws = np.random.random(
                 (self.n_samples, self.n_sources, 5))
 
+        try:
+            self.mix_reweight = self.kwargs['mix_reweight']
+        except:
+            self.mix_reweight = False
+
     def get_n_batches(self):
         return self.n_batches
 
@@ -298,10 +303,10 @@ class AugmentedOnlineMixingDataset(Dataset):
 
         # Select with a prior probability between the list of datasets
         for source_idx in range(self.n_sources):
-            # dataset_idx = self.get_selected_dataset_index(
-            #     mixture_idx, source_idx)
-
-            dataset_idx = source_idx
+            if self.mix_reweight:
+                dataset_idx = source_idx
+            else:
+                dataset_idx = self.get_selected_dataset_index(mixture_idx, source_idx)
 
             # Avoid getting the same sound class inside the mixture
             not_equal_to = None

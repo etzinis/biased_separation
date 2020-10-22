@@ -10,12 +10,15 @@ import matplotlib.pyplot as plt
 import os
 
 
-def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
+def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix='', mix_reweight=False):
     if len(x_data) != len(y_data):
         import pdb; pdb.set_trace()
     plt.figure()
-    plt.scatter(x_data[0::2], y_data[0::2], alpha=0.5, color='green')
-    plt.scatter(x_data[1::2], y_data[1::2], alpha=0.5, color='blue')
+    if mix_reweight:
+        plt.scatter(x_data[0::2], y_data[0::2], alpha=0.5, color='green')
+        plt.scatter(x_data[1::2], y_data[1::2], alpha=0.5, color='blue')
+    else:
+        plt.scatter(x_data, y_data, alpha=0.5)
     plt.ylabel(y_name, fontsize=24)
     plt.xlabel(x_name, fontsize=24)
     x_lim = plt.xlim()
@@ -29,7 +32,7 @@ def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
     return figpath
 
 
-def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
+def report_scatterplots(scatterplots_list, experiment, tr_step, val_step, mix_reweight=False):
     """Only reports metrics"""
     exp_id = experiment.get_key()
     # Subsample for better visualization.
@@ -40,26 +43,34 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
             x_name, x_data_in_list =  x_data
             y_name, y_data_in_list =  y_data
 
-            x_data_in_numpy_speech = np.array(x_data_in_list[0::2])[::factor]
-            x_data_in_numpy_other = np.array(x_data_in_list[1::2])[::factor]
-            y_data_in_numpy_speech = np.array(y_data_in_list[0::2])[::factor]
-            y_data_in_numpy_other = np.array(y_data_in_list[1::2])[::factor]
+            if mix_reweight:
+                x_data_in_numpy_speech = np.array(x_data_in_list[0::2])[::factor]
+                x_data_in_numpy_other = np.array(x_data_in_list[1::2])[::factor]
+                y_data_in_numpy_speech = np.array(y_data_in_list[0::2])[::factor]
+                y_data_in_numpy_other = np.array(y_data_in_list[1::2])[::factor]
 
-            n_samples = int(len(x_data_in_list) / factor)
+                n_samples = int(len(x_data_in_list) / factor)
 
-            x_data_in_numpy = np.empty((x_data_in_numpy_speech.size + x_data_in_numpy_other.size,), dtype=x_data_in_numpy_speech.dtype)
-            x_data_in_numpy[0::2] = x_data_in_numpy_speech
-            x_data_in_numpy[1::2] = x_data_in_numpy_other
+                x_data_in_numpy = np.empty((x_data_in_numpy_speech.size + x_data_in_numpy_other.size,), dtype=x_data_in_numpy_speech.dtype)
+                x_data_in_numpy[0::2] = x_data_in_numpy_speech
+                x_data_in_numpy[1::2] = x_data_in_numpy_other
 
-            y_data_in_numpy = np.empty((y_data_in_numpy_speech.size + y_data_in_numpy_other.size,), dtype=y_data_in_numpy_speech.dtype)
-            y_data_in_numpy[0::2] = y_data_in_numpy_speech
-            y_data_in_numpy[1::2] = y_data_in_numpy_other
+                y_data_in_numpy = np.empty((y_data_in_numpy_speech.size + y_data_in_numpy_other.size,), dtype=y_data_in_numpy_speech.dtype)
+                y_data_in_numpy[0::2] = y_data_in_numpy_speech
+                y_data_in_numpy[1::2] = y_data_in_numpy_other
+            else:
+                x_data_in_numpy = np.array(x_data_in_list)
+                n_samples = int(x_data_in_numpy.shape[0] / factor)
+                x_data_in_numpy = x_data_in_numpy[::factor]
+                y_data_in_numpy = np.array(y_data_in_list)
+                y_data_in_numpy = y_data_in_numpy[::factor]
 
             if 'val' in x_name or 'test' in x_name:
                 with experiment.validate():
                     path = create_new_scatterplot(x_name, x_data_in_numpy,
                                                   y_name, y_data_in_numpy,
-                                                  prefix=prefix)
+                                                  prefix=prefix,
+                                                  mix_reweight=mix_reweight)
                     experiment.log_image(
                         path, name=y_name+'n_samples_'+str(n_samples),
                         overwrite=False,
@@ -70,7 +81,8 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
                 with experiment.train():
                     path = create_new_scatterplot(x_name, x_data_in_numpy,
                                                   y_name, y_data_in_numpy,
-                                                  prefix=prefix)
+                                                  prefix=prefix,
+                                                  mix_reweight=mix_reweight)
                     experiment.log_image(
                         path, name=y_name+'n_samples_'+str(n_samples),
                         overwrite=False,
@@ -97,7 +109,7 @@ def report_histograms(histograms_dict, experiment, tr_step, val_step):
                              "".format(h_name))
 
 
-def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
+def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step, mix_reweight=False):
     """Wrapper for cometml loss report functionality.
 
     Reports the mean and the std of each loss by inferring the train and the
@@ -116,32 +128,34 @@ def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
 
     for l_name in losses_dict:
         values = losses_dict[l_name]['acc']
-        values_speech = values[0::2]
-        values_other = values[1::2]
 
         mean_metric = np.mean(values)
         std_metric = np.std(values)
 
-        mean_metric_speech = np.mean(values_speech)
-        std_metric_speech = np.std(values_speech)
-        mean_metric_other = np.mean(values_other)
-        std_metric_other = np.std(values_other)
+        if mix_reweight:
+            values_speech = values[0::2]
+            values_other = values[1::2]
+            mean_metric_speech = np.mean(values_speech)
+            std_metric_speech = np.std(values_speech)
+            mean_metric_other = np.mean(values_other)
+            std_metric_other = np.std(values_other)
 
         if 'val' in l_name or 'test' in l_name:
             actual_name = l_name.replace('val_', '')
             with experiment.validate():
-                experiment.log_metric(actual_name + '_mean_speech',
-                                      mean_metric_speech,
-                                      step=val_step)
-                experiment.log_metric(actual_name + '_std_speech',
-                                      std_metric_speech,
-                                      step=val_step)
-                experiment.log_metric(actual_name + '_mean_other',
-                                      mean_metric_other,
-                                      step=val_step)
-                experiment.log_metric(actual_name + '_std_other',
-                                      std_metric_other,
-                                      step=val_step)
+                if mix_reweight:
+                    experiment.log_metric(actual_name + '_mean_speech',
+                                        mean_metric_speech,
+                                        step=val_step)
+                    experiment.log_metric(actual_name + '_std_speech',
+                                        std_metric_speech,
+                                        step=val_step)
+                    experiment.log_metric(actual_name + '_mean_other',
+                                        mean_metric_other,
+                                        step=val_step)
+                    experiment.log_metric(actual_name + '_std_other',
+                                        std_metric_other,
+                                        step=val_step)
                 experiment.log_metric(actual_name + '_mean',
                                       mean_metric,
                                       step=val_step)

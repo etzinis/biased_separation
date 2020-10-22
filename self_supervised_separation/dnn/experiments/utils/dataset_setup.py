@@ -71,7 +71,8 @@ def create_loader_for_simple_dataset(dataset_name=None,
             n_sources=2,
             normalize_audio=normalize_audio,
             max_abs_snr=max_abs_snr,
-            fixed_seed=fixed_seed)
+            fixed_seed=fixed_seed,
+            mix_reweight=True)
         return data_loader
     elif dataset_name == 'LIBRI2MIX':
         loader = libri2mix_loader
