@@ -31,6 +31,29 @@ def create_loader_for_simple_dataset(dataset_name=None,
         root_path = WHAM_ROOT_PATH
         translator = {'train': 'tr', 'test': 'tt', 'val': 'cv'}
         translated_split = translator[data_split]
+    elif dataset_name == 'RAND_MIX':
+        if data_split == 'train':
+            fixed_seed = 0
+        elif data_split == 'test':
+            fixed_seed = 8
+        else:
+            fixed_seed = 9
+        data_loader = augmented_mix_dataloader.AugmentedOnlineMixingDataset(
+            input_dataset_p=[os.path.join(WSJ_ROOT_PATH, data_split),
+                             os.path.join(ESC50_ROOT_PATH, data_split)],
+            datasets_priors=[0.5, 0.5],
+            batch_size=batch_size,
+            n_jobs=num_workers,
+            n_samples=n_samples,
+            return_items=['wav'],
+            fs=float(sample_rate),
+            selected_timelength=timelegth,
+            n_sources=2,
+            normalize_audio=normalize_audio,
+            max_abs_snr=max_abs_snr,
+            fixed_seed=fixed_seed,
+            return_dataset_indexes=True)
+        return data_loader
     elif dataset_name == 'ESC50':
         if data_split == 'train':
             fixed_seed = 0
@@ -50,7 +73,8 @@ def create_loader_for_simple_dataset(dataset_name=None,
             n_sources=2,
             normalize_audio=normalize_audio,
             max_abs_snr=max_abs_snr,
-            fixed_seed=fixed_seed)
+            fixed_seed=fixed_seed,
+            return_dataset_indexes=False)
         return data_loader
     elif dataset_name == 'MIX':
         if data_split == 'train':

@@ -131,6 +131,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                       pr_batch,
                       t_batch,
                       epoch_count,
+                      classes_indexes,
                       initial_mixtures=None,
                       mix_reweight=False,
                       eps=10e-8):
@@ -173,16 +174,18 @@ class HigherOrderPermInvariantSISDR(nn.Module):
 
             sources_sisdr = new_weights * sources_sisdr.flatten(0)
         else:
-            sources_sisdr = best_sisdr.flatten(0)
-
+            #sources_sisdr = best_sisdr.flatten(0)
             # const
-            softmax_param = torch.tensor(2.)
+            #softmax_param = torch.tensor(2.)
             # linear
             # softmax_param = torch.max(torch.tensor(2.), torch.tensor(20. - (epoch_count + 1)))
-
-            new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+            #new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+            #new_weights = new_weights.detach()
+            #sources_sisdr = new_weights * sources_sisdr
+            classes_weights = 3. * classes_indexes
+            new_weights = torch.softmax(classes_weights.flatten(0), 0)
             new_weights = new_weights.detach()
-            sources_sisdr = new_weights * sources_sisdr
+            sources_sisdr = new_weights * sources_sisdr.flatten(0)
 
         if not self.return_individual_results:
             sources_sisdr = sources_sisdr.sum()
@@ -195,6 +198,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                 pr_batch,
                 t_batch,
                 epoch_count,
+                classes_indexes,
                 eps=1e-9,
                 initial_mixtures=None,
                 mix_reweight=False):
@@ -217,6 +221,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
         sisnr_l = self.compute_sisnr(pr_batch,
                                      t_batch,
                                      epoch_count=epoch_count,
+                                     classes_indexes=classes_indexes,
                                      eps=eps,
                                      initial_mixtures=initial_mixtures,
                                      mix_reweight=mix_reweight)
