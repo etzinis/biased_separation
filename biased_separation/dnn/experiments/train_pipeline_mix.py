@@ -1,5 +1,5 @@
 """!
-@brief Running supervised SudORM-RF
+@brief Running supervised SudORM-RF with variance reduction
 
 @author Efthymios Tzinis {etzinis2@illinois.edu}
 @copyright University of Illinois at Urbana-Champaign
@@ -16,12 +16,13 @@ from torch.nn import functional as F
 import numpy as np
 from tqdm import tqdm
 from pprint import pprint
-import self_supervised_separation.dnn.experiments.utils.cmd_args_parser as parser
-import self_supervised_separation.dnn.experiments.utils.dataset_setup as dataset_setup
-import self_supervised_separation.dnn.losses.sisdr as sisdr_lib
-import self_supervised_separation.dnn.models.sudormrf as sudormrf
-import self_supervised_separation.dnn.utils.cometml_loss_report as cometml_report
-import self_supervised_separation.dnn.utils.cometml_log_audio as cometml_audio_logger
+import biased_separation.dnn.experiments.utils.cmd_args_parser as parser
+import biased_separation.dnn.experiments.utils.dataset_setup as dataset_setup
+import biased_separation.dnn.losses.sisdr as sisdr_lib
+import biased_separation.dnn.models.sudormrf as sudormrf
+import biased_separation.dnn.utils.cometml_loss_report as cometml_report
+import biased_separation.dnn.utils.metrics_logger as cometml_assets_logger
+import biased_separation.dnn.utils.cometml_log_audio as cometml_audio_logger
 
 
 args = parser.get_args()
@@ -53,11 +54,13 @@ os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(
 
 back_loss_tr_loss_name, back_loss_tr_loss = (
     'tr_back_loss_SISDRi',
-    sisdr_lib.PermInvariantSISDR(batch_size=hparams['batch_size'],
-                                 n_sources=hparams['n_sources'],
-                                 zero_mean=True,
-                                 backward_loss=True,
-                                 improvement=True))
+    sisdr_lib.HigherOrderPermInvariantSISDR(batch_size=hparams['batch_size'],
+                                            n_sources=hparams['n_sources'],
+                                            zero_mean=True,
+                                            backward_loss=True,
+                                            improvement=True,
+                                            var_weight=0.0)
+)
 
 val_losses = {}
 all_losses = []
@@ -65,12 +68,21 @@ for val_set in [x for x in generators if not x == 'train']:
     if generators[val_set] is None:
         continue
     val_losses[val_set] = {}
-    all_losses.append(val_set + '_SISDRi')
-    val_losses[val_set][val_set + '_SISDRi'] = sisdr_lib.PermInvariantSISDR(
+    all_losses.append(val_set + '_SISDR')
+    val_losses[val_set][val_set + '_SISDR'] = sisdr_lib.PermInvariantSISDR(
         batch_size=hparams['batch_size'], n_sources=hparams['n_sources'],
         zero_mean=True, backward_loss=False, improvement=True,
         return_individual_results=True)
 all_losses.append(back_loss_tr_loss_name)
+
+histogram_names = ['tr_input_snr']
+eval_generators_names = [x for x in generators
+                         if not x == 'train' and generators[x] is not None]
+for val_set in eval_generators_names:
+    if generators[val_set] is None:
+        continue
+    histogram_names += [
+        val_set+'_input_snr', val_set+'_SISDRi', val_set+'_SISDR']
 
 model = sudormrf.SuDORMRF(out_channels=hparams['out_channels'],
                           in_channels=hparams['in_channels'],
@@ -90,44 +102,40 @@ print('Trainable Parameters: {}'.format(numparams))
 model = torch.nn.DataParallel(model).cuda()
 opt = torch.optim.Adam(model.parameters(), lr=hparams['learning_rate'])
 
-def normalize_tensor_wav(wav_tensor, eps=1e-8, std=None):
-    mean = wav_tensor.mean(-1, keepdim=True)
-    if std is None:
-        std = wav_tensor.std(-1, keepdim=True)
-    return (wav_tensor - mean) / (std + eps)
-
 tr_step = 0
 val_step = 0
 for i in range(hparams['n_epochs']):
     res_dic = {}
+    histograms_dic = {}
     for loss_name in all_losses:
         res_dic[loss_name] = {'mean': 0., 'std': 0., 'acc': []}
-    print("Supervised Sudo-RM-RF: {} - {} || Epoch: {}/{}".format(
+        res_dic[loss_name+'i'] = {'mean': 0., 'std': 0., 'acc': []}
+    for hist_name in histogram_names:
+        histograms_dic[hist_name] = []
+        histograms_dic[hist_name+'i'] = []
+        for c in ['_speech', '_other']:
+            histograms_dic[hist_name + c] = []
+            histograms_dic[hist_name+'i' + c] = []
+    print("Higher Order Sudo-RM-RF: {} - {} || Epoch: {}/{}".format(
         experiment.get_key(), experiment.get_tags(), i+1, hparams['n_epochs']))
     model.train()
 
     for data in tqdm(generators['train'], desc='Training'):
         opt.zero_grad()
-        #m1wavs = data[0].cuda()
+        
+        m1wavs = data[0].cuda()
         clean_wavs = data[-1].cuda()
 
-        # # Online mixing over samples of the batch. (This might cause to get
-        # # utterances from the same speaker but it's highly improbable).
-        energies = torch.sum(clean_wavs**2, dim=-1, keepdim=True)
-        new_s1 = clean_wavs[:, 0, :]
-        new_s2 = clean_wavs[torch.randperm(4), 1, :]
-        new_s2 = new_s2 * torch.sqrt(energies[:, 1] /
-                                      (new_s2**2).sum(-1, keepdims=True))
-        #
-        m1wavs = normalize_tensor_wav(new_s1 + new_s2)
-        clean_wavs[:, 0, :] = normalize_tensor_wav(new_s1)
-        clean_wavs[:, 1, :] = normalize_tensor_wav(new_s2)
-        # ===============================================
-        #
+        histograms_dic['tr_input_snr'] += (10. * torch.log10(
+            (clean_wavs[:, 0] ** 2).sum(-1) / (1e-8 + (
+                    clean_wavs[:, 1] ** 2).sum(-1)))).tolist()
+
         rec_sources_wavs = model(m1wavs.unsqueeze(1))
 
         l = back_loss_tr_loss(rec_sources_wavs,
                               clean_wavs,
+                              epoch_count=i,
+                              mix_reweight=True,
                               initial_mixtures=m1wavs.unsqueeze(1))
         if hparams['clip_grad_norm'] > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(),
@@ -150,26 +158,59 @@ for i in range(hparams['n_epochs']):
             with torch.no_grad():
                 for data in tqdm(generators[val_set], desc='Validation'):
                     m1wavs = data[0].cuda()
-                    m1wavs = normalize_tensor_wav(m1wavs)
                     clean_wavs = data[-1].cuda()
+
+                    input_snr_tensor = 10. * torch.log10(
+                        (clean_wavs[:, 0] ** 2).sum(-1) / (1e-8 + (
+                                clean_wavs[:, 1] ** 2).sum(-1)))
+                    input_snr_first = input_snr_tensor.tolist()
+                    input_snr_second = (-input_snr_tensor).tolist()
+                    histograms_dic[val_set + '_input_snr'] += [
+                        val
+                        for pair in zip(input_snr_first, input_snr_second)
+                        for val in pair]
+
 
                     rec_sources_wavs = model(m1wavs.unsqueeze(1))
 
                     for loss_name, loss_func in val_losses[val_set].items():
-                        l = loss_func(rec_sources_wavs,
+                        l, l_improvement = loss_func(rec_sources_wavs,
                                       clean_wavs,
                                       initial_mixtures=m1wavs.unsqueeze(1))
-                        res_dic[loss_name]['acc'] += l.tolist()
 
+                        values_in_list = l.tolist()
+                        # print(l.tolist())
+                        improvements_in_list = l_improvement.tolist()
+                        res_dic[loss_name]['acc'] += values_in_list
+                        res_dic[loss_name+'i']['acc'] += improvements_in_list
+                        histograms_dic[loss_name] += values_in_list
+                        histograms_dic[loss_name+'i'] += improvements_in_list
+                        for j, c in enumerate(['_speech', '_other']):
+                            histograms_dic[loss_name + c] += values_in_list[j::2]
+                            histograms_dic[loss_name+'i' + c] += improvements_in_list[j::2]
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 
     val_step += 1
-
-    res_dic = cometml_report.report_losses_mean_and_std(res_dic,
-                                                        experiment,
-                                                        tr_step,
-                                                        val_step)
+    
+    res_dic = cometml_report.report_losses_mean_and_std(
+        res_dic, experiment, tr_step, val_step, mix_reweight=True)
+    cometml_report.report_histograms(
+        histograms_dic, experiment, tr_step, val_step)
+    scatter_lists = []
+    for val_set in eval_generators_names:
+        for suffix in ['', 'i']:
+            scatter_lists.append([(val_set + '_input_snr',
+                             histograms_dic[val_set + '_input_snr']),
+                            (val_set + '_SISDR' + suffix,
+                             histograms_dic[val_set + '_SISDR' + suffix])])
+    cometml_report.report_scatterplots(
+        scatter_lists, experiment, tr_step, val_step, mix_reweight=True)
+    # Save all metrics as assets.
+    cometml_assets_logger.log_metrics(histograms_dic, '/tmp/', experiment,
+                                      tr_step, val_step)
+    cometml_assets_logger.log_metrics(res_dic, '/tmp/', experiment,
+                                      tr_step, val_step)
 #
 #     # model_class.save_if_best(
 #     #     hparams['tn_mask_dir'], model.module, opt, tr_step,

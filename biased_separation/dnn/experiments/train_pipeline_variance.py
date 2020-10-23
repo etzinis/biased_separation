@@ -16,14 +16,14 @@ from torch.nn import functional as F
 import numpy as np
 from tqdm import tqdm
 from pprint import pprint
-import self_supervised_separation.dnn.experiments.utils.cmd_args_parser as parser
-import self_supervised_separation.dnn.experiments.utils.dataset_setup as dataset_setup
-import self_supervised_separation.dnn.losses.sisdr as sisdr_lib
-import self_supervised_separation.dnn.models.sudormrf as sudormrf
-import self_supervised_separation.dnn.utils.cometml_loss_report as cometml_report
-import self_supervised_separation.dnn.utils.metrics_logger as \
+import biased_separation.dnn.experiments.utils.cmd_args_parser as parser
+import biased_separation.dnn.experiments.utils.dataset_setup as dataset_setup
+import biased_separation.dnn.losses.sisdr as sisdr_lib
+import biased_separation.dnn.models.sudormrf as sudormrf
+import biased_separation.dnn.utils.cometml_loss_report as cometml_report
+import biased_separation.dnn.utils.metrics_logger as \
     cometml_assets_logger
-import self_supervised_separation.dnn.utils.cometml_log_audio as cometml_audio_logger
+import biased_separation.dnn.utils.cometml_log_audio as cometml_audio_logger
 
 
 args = parser.get_args()

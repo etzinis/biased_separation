@@ -7,9 +7,9 @@
 
 import os
 from __config__ import WHAM_ROOT_PATH, LIBRI2MIX_ROOT_PATH, ESC50_ROOT_PATH, WSJ_ROOT_PATH
-import self_supervised_separation.dataloaders.libri2mix as libri2mix_loader
-import self_supervised_separation.dataloaders.wham as wham_loader
-import self_supervised_separation.dataloaders.augmented_mix_dataloader as augmented_mix_dataloader
+import biased_separation.dataloaders.libri2mix as libri2mix_loader
+import biased_separation.dataloaders.wham as wham_loader
+import biased_separation.dataloaders.augmented_mix_dataloader as augmented_mix_dataloader
 
 
 def create_loader_for_simple_dataset(dataset_name=None,

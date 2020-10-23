@@ -1,5 +1,5 @@
 """!
-@brief Pytorch dataloader for wham dataset.
+@brief Pytorch dataloader for Libri2mix dataset.
 
 @author Efthymios Tzinis {etzinis2@illinois.edu}
 @copyright University of illinois at Urbana Champaign
@@ -10,11 +10,10 @@ import os
 import numpy as np
 import pickle
 import glob2
-import self_supervised_separation.dataloaders.abstract_dataset as \
+import biased_separation.dataloaders.abstract_dataset as \
     abstract_dataset
 from scipy.io import wavfile
 from tqdm import tqdm
-from time import time
 
 EPS = 1e-8
 enh_single = {'mixture': 'mix_single',
@@ -51,7 +50,8 @@ def normalize_tensor_wav(wav_tensor, eps=1e-8, std=None):
 
 
 class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
-    """ Dataset class for WHAM source separation and speech enhancement tasks.
+    """ Dataset class for Libri2mix source separation and speech enhancement
+    tasks.
 
     Example of kwargs:
         root_dirpath='/mnt/data/wham', task='enh_single',
@@ -68,9 +68,6 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
         self.zero_pad = self.get_arg_and_check_validness(
             'zero_pad', known_type=bool)
 
-        self.augment = self.get_arg_and_check_validness(
-            'augment', known_type=bool)
-
         self.normalize_audio = self.get_arg_and_check_validness(
             'normalize_audio', known_type=bool)
 
@@ -78,7 +75,8 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
             'min_or_max', known_type=str, choices=['min', 'max'])
 
         self.split = self.get_arg_and_check_validness(
-            'split', known_type=str, choices=['cv', 'tr', 'tt'])
+            'split', known_type=str, choices=['dev', 'test', 'train-100',
+                                              'train-360'])
 
         self.n_samples = self.get_arg_and_check_validness(
             'n_samples', known_type=int, extra_lambda_checks=[lambda x: x >= 0])
@@ -133,7 +131,6 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
         max_time_samples = max([n_s for (_, n_s) in self.file_names])
         self.file_names = [x for (x, _) in self.file_names]
-        print(len(self.file_names))
 
         # for the case that we need the whole audio input
         if self.time_samples <= 0.:
@@ -163,27 +160,14 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
         return len(self.file_names)
 
     def __getitem__(self, idx):
-        if self.augment:
-            the_time = int(np.modf(time())[0] * 100000000)
-            np.random.seed(the_time)
-
         filename = self.file_names[idx]
 
         mixture_path = os.path.join(self.dataset_dirpath,
                                     WHAM_TASKS[self.task]['mixture'],
                                     filename)
         _, waveform = wavfile.read(mixture_path)
-        max_len = len(waveform)
-        rand_start = 0
-        if self.augment and max_len > self.time_samples:
-            rand_start = np.random.randint(0, max_len - self.time_samples)
-            waveform = waveform[rand_start:rand_start+self.time_samples]
         mixture_wav = np.array(waveform)
         mixture_wav = torch.tensor(mixture_wav, dtype=torch.float32)
-        # First normalize the mixture and then pad
-        if self.normalize_audio:
-            print('I GO')
-            mixture_wav = normalize_tensor_wav(mixture_wav)
         mixture_wav = self.safe_pad(mixture_wav)
 
         sources_list = []
@@ -194,13 +178,10 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
                 _, waveform = wavfile.read(source_path)
             except Exception as e:
                 print(e)
-                raise IOError('could not load file from: {}'.format(source_path))
-            waveform = waveform[rand_start:rand_start + self.time_samples]
+                raise IOError('Could not load file from: {}'.format(
+                    source_path))
             numpy_wav = np.array(waveform)
             source_wav = torch.tensor(numpy_wav, dtype=torch.float32)
-            # First normalize the mixture and then pad
-            if self.normalize_audio:
-                source_wav = normalize_tensor_wav(source_wav)
             source_wav = self.safe_pad(source_wav)
             sources_list.append(source_wav)
 
@@ -222,14 +203,14 @@ class Dataset(torch.utils.data.Dataset, abstract_dataset.Dataset):
 
 
 def test_generator():
-    wham_root_p = '/mnt/data/wham'
-    batch_size = 1
+    wham_root_p = '/mnt/data/libri_mix/Libri2Mix'
+    batch_size = 3
     sample_rate = 8000
     timelength = 4.0
     time_samples = int(sample_rate * timelength)
     data_loader = Dataset(
         root_dirpath=wham_root_p, task='sep_clean',
-        split='tr', sample_rate=sample_rate, timelength=timelength,
+        split='train-100', sample_rate=sample_rate, timelength=timelength,
         zero_pad=True, min_or_max='min',
         normalize_audio=False, n_samples=10)
     generator = data_loader.get_generator(batch_size=batch_size, num_workers=1)
@@ -243,7 +224,7 @@ def test_generator():
     # test the testing set with batch size 1 only
     data_loader = Dataset(
         root_dirpath=wham_root_p, task='sep_clean',
-        split='tt', sample_rate=sample_rate, timelength=-1.,
+        split='test', sample_rate=sample_rate, timelength=-1.,
         zero_pad=False, min_or_max='min',
         normalize_audio=False, n_samples=10)
     generator = data_loader.get_generator(batch_size=1, num_workers=1)
