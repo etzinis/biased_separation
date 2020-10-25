@@ -1,3 +1,3 @@
-# self_supervised_separation
+# Biasing estimation models with applications to source separation
 
-Self-supervised audio source separation by extracting information from coinciding sources in mixtures.
+We present the implementation of a unified gradient reweighting scheme for training models and biasing them towards specific operation modes.
