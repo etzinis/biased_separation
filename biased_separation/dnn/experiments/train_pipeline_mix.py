@@ -110,6 +110,9 @@ for i in range(hparams['n_epochs']):
     for loss_name in all_losses:
         res_dic[loss_name] = {'mean': 0., 'std': 0., 'acc': []}
         res_dic[loss_name+'i'] = {'mean': 0., 'std': 0., 'acc': []}
+        for c in ['_speech', '_other']:
+            res_dic[loss_name + c] = {'mean': 0., 'std': 0., 'acc': []}
+            res_dic[loss_name + 'i' + c] = {'mean': 0., 'std': 0., 'acc': []}
     for hist_name in histogram_names:
         histograms_dic[hist_name] = []
         histograms_dic[hist_name+'i'] = []
@@ -188,6 +191,8 @@ for i in range(hparams['n_epochs']):
                         for j, c in enumerate(['_speech', '_other']):
                             histograms_dic[loss_name + c] += values_in_list[j::2]
                             histograms_dic[loss_name+'i' + c] += improvements_in_list[j::2]
+                            res_dic[loss_name + c]['acc'] += values_in_list[j::2]
+                            res_dic[loss_name+'i' + c]['acc'] += improvements_in_list[j::2]
             audio_logger.log_batch(rec_sources_wavs, clean_wavs, m1wavs,
                                    experiment, step=val_step, tag=val_set)
 

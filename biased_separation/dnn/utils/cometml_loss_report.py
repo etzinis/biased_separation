@@ -181,30 +181,9 @@ def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step, mix_r
         mean_metric = np.mean(values)
         std_metric = np.std(values)
 
-        if mix_reweight:
-            values_speech = values[0::2]
-            values_other = values[1::2]
-            mean_metric_speech = np.mean(values_speech)
-            std_metric_speech = np.std(values_speech)
-            mean_metric_other = np.mean(values_other)
-            std_metric_other = np.std(values_other)
-
         if 'val' in l_name or 'test' in l_name:
             actual_name = l_name.replace('val_', '')
             with experiment.validate():
-                if mix_reweight:
-                    experiment.log_metric(actual_name + '_mean_speech',
-                                        mean_metric_speech,
-                                        step=val_step)
-                    experiment.log_metric(actual_name + '_std_speech',
-                                        std_metric_speech,
-                                        step=val_step)
-                    experiment.log_metric(actual_name + '_mean_other',
-                                        mean_metric_other,
-                                        step=val_step)
-                    experiment.log_metric(actual_name + '_std_other',
-                                        std_metric_other,
-                                        step=val_step)
                 experiment.log_metric(actual_name + '_mean',
                                       mean_metric,
                                       step=val_step)
