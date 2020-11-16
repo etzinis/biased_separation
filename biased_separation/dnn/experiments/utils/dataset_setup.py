@@ -52,7 +52,8 @@ def create_loader_for_simple_dataset(dataset_name=None,
             normalize_audio=normalize_audio,
             max_abs_snr=max_abs_snr,
             fixed_seed=fixed_seed,
-            return_dataset_indexes=True)
+            return_dataset_indexes=True,
+            mix_reweight=False)
         return data_loader
     elif dataset_name == 'ESC50':
         if data_split == 'train':
@@ -74,7 +75,8 @@ def create_loader_for_simple_dataset(dataset_name=None,
             normalize_audio=normalize_audio,
             max_abs_snr=max_abs_snr,
             fixed_seed=fixed_seed,
-            return_dataset_indexes=False)
+            return_dataset_indexes=False,
+            mix_reweight=False)
         return data_loader
     elif dataset_name == 'MIX':
         if data_split == 'train':
@@ -96,6 +98,7 @@ def create_loader_for_simple_dataset(dataset_name=None,
             normalize_audio=normalize_audio,
             max_abs_snr=max_abs_snr,
             fixed_seed=fixed_seed,
+            return_dataset_indexes=False,
             mix_reweight=True)
         return data_loader
     elif dataset_name == 'LIBRI2MIX':

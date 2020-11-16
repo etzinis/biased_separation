@@ -158,10 +158,9 @@ class AugmentedOnlineMixingDataset(Dataset):
             self.random_draws = np.random.random(
                 (self.n_samples, self.n_sources, 5))
 
-        try:
-            self.mix_reweight = self.kwargs['mix_reweight']
-        except:
-            self.mix_reweight = False
+        # Do not mix sources randomly is mix_reweight flag is present and True
+        self.mix_reweight = self.get_arg_and_check_validness(
+            'mix_reweight', known_type=bool)
 
     def get_n_batches(self):
         return self.n_batches
@@ -313,7 +312,7 @@ class AugmentedOnlineMixingDataset(Dataset):
             else:
                 dataset_idx = self.get_selected_dataset_index(
                     mixture_idx, source_idx)
-                dataset_indices.append(dataset_idx)
+            dataset_indices.append(dataset_idx)
 
             # Avoid getting the same sound class inside the mixture
             not_equal_to = None
@@ -486,7 +485,9 @@ def test_truly_random_generator():
         selected_timelength=4.,
         n_sources=2,
         max_abs_snr=2.5,
-        fixed_seed=0
+        fixed_seed=0,
+        return_dataset_indexes=False,
+        mix_reweight=True
     )
 
     data_loader = AugmentedOnlineMixingDataset(**vars(these_args))
