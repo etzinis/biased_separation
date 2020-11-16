@@ -163,7 +163,9 @@ class HigherOrderPermInvariantSISDR(nn.Module):
 
         sources_sisdr = best_sisdr.squeeze(-1)
 
-        if mix_reweight:        
+        if mix_reweight:
+            # Deterministically mixed sound classes,
+            # Class 0 is on slot 0, Class 1 on slot 1         
             T1, T2 = 1, 0
             T = torch.ones(sources_sisdr.shape)
             T[:, 0] = T1
@@ -171,21 +173,24 @@ class HigherOrderPermInvariantSISDR(nn.Module):
             
             T = T.flatten(0)
             new_weights = torch.softmax(T, 0).cuda()
-
+        elif classes_indexes is not None:
+            # Randomly mixed sound classes
             sources_sisdr = new_weights * sources_sisdr.flatten(0)
-        else:
-            #sources_sisdr = best_sisdr.flatten(0)
-            # const
-            #softmax_param = torch.tensor(2.)
-            # linear
-            # softmax_param = torch.max(torch.tensor(2.), torch.tensor(20. - (epoch_count + 1)))
-            #new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
-            #new_weights = new_weights.detach()
-            #sources_sisdr = new_weights * sources_sisdr
             classes_weights = 3. * classes_indexes
             new_weights = torch.softmax(classes_weights.flatten(0), 0)
             new_weights = new_weights.detach()
             sources_sisdr = new_weights * sources_sisdr.flatten(0)
+        else:
+            # Reweighting based on loss
+            sources_sisdr = best_sisdr.flatten(0)
+            # const
+            softmax_param = torch.tensor(2.)
+            # linear
+            # softmax_param = torch.max(torch.tensor(2.), torch.tensor(20. - (epoch_count + 1)))
+            new_weights = torch.softmax(- sources_sisdr / softmax_param, 0)
+            new_weights = new_weights.detach()
+            sources_sisdr = new_weights * sources_sisdr
+            
 
         if not self.return_individual_results:
             sources_sisdr = sources_sisdr.sum()
@@ -198,7 +203,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                 pr_batch,
                 t_batch,
                 epoch_count,
-                classes_indexes,
+                classes_indexes=None,
                 eps=1e-9,
                 initial_mixtures=None,
                 mix_reweight=False):

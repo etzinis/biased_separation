@@ -487,7 +487,7 @@ def test_truly_random_generator():
         max_abs_snr=2.5,
         fixed_seed=0,
         return_dataset_indexes=False,
-        mix_reweight=True
+        mix_reweight=False
     )
 
     data_loader = AugmentedOnlineMixingDataset(**vars(these_args))
