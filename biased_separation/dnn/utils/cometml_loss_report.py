@@ -10,15 +10,11 @@ import matplotlib.pyplot as plt
 import os
 
 
-def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix='', mix_reweight=False):
+def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
     if len(x_data) != len(y_data):
         import pdb; pdb.set_trace()
     plt.figure()
-    if mix_reweight:
-        plt.scatter(x_data[0::2], y_data[0::2], alpha=0.5, color='green')
-        plt.scatter(x_data[1::2], y_data[1::2], alpha=0.5, color='blue')
-    else:
-        plt.scatter(x_data, y_data, alpha=0.5)
+    plt.scatter(x_data, y_data, alpha=0.5)
     plt.ylabel(y_name, fontsize=24)
     plt.xlabel(x_name, fontsize=24)
     x_lim = plt.xlim()
@@ -31,8 +27,25 @@ def create_new_scatterplot(x_name, x_data, y_name, y_data, prefix='', mix_reweig
     plt.close()
     return figpath
 
+def create_new_mix_scatterplot(x_name, x_data, y_name, y_data, prefix=''):
+    if len(x_data) != len(y_data):
+        import pdb; pdb.set_trace()
+    plt.figure()
+    plt.scatter(x_data[0::2], y_data[0::2], alpha=0.5, color='green')
+    plt.scatter(x_data[1::2], y_data[1::2], alpha=0.5, color='blue')
+    plt.ylabel(y_name, fontsize=24)
+    plt.xlabel(x_name, fontsize=24)
+    x_lim = plt.xlim()
+    if y_name.endswith('i'):
+        plt.plot(x_lim, [0, 0], 'k-', color='r')
+    else:
+        plt.plot(x_lim, x_lim, 'k-', color='r')
+    figpath = os.path.join('/tmp', prefix+x_name+y_name+'.png')
+    plt.savefig(figpath, dpi=150, bbox_inches='tight')
+    plt.close()
+    return figpath
 
-def report_scatterplots(scatterplots_list, experiment, tr_step, val_step, mix_reweight=False):
+def report_scatterplots(scatterplots_list, experiment, tr_step, val_step):
     """Only reports metrics"""
     exp_id = experiment.get_key()
     # Subsample for better visualization.
@@ -43,34 +56,17 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step, mix_re
             x_name, x_data_in_list =  x_data
             y_name, y_data_in_list =  y_data
 
-            if mix_reweight:
-                x_data_in_numpy_speech = np.array(x_data_in_list[0::2])[::factor]
-                x_data_in_numpy_other = np.array(x_data_in_list[1::2])[::factor]
-                y_data_in_numpy_speech = np.array(y_data_in_list[0::2])[::factor]
-                y_data_in_numpy_other = np.array(y_data_in_list[1::2])[::factor]
-
-                n_samples = int(len(x_data_in_list) / factor)
-
-                x_data_in_numpy = np.empty((x_data_in_numpy_speech.size + x_data_in_numpy_other.size,), dtype=x_data_in_numpy_speech.dtype)
-                x_data_in_numpy[0::2] = x_data_in_numpy_speech
-                x_data_in_numpy[1::2] = x_data_in_numpy_other
-
-                y_data_in_numpy = np.empty((y_data_in_numpy_speech.size + y_data_in_numpy_other.size,), dtype=y_data_in_numpy_speech.dtype)
-                y_data_in_numpy[0::2] = y_data_in_numpy_speech
-                y_data_in_numpy[1::2] = y_data_in_numpy_other
-            else:
-                x_data_in_numpy = np.array(x_data_in_list)
-                n_samples = int(x_data_in_numpy.shape[0] / factor)
-                x_data_in_numpy = x_data_in_numpy[::factor]
-                y_data_in_numpy = np.array(y_data_in_list)
-                y_data_in_numpy = y_data_in_numpy[::factor]
+            x_data_in_numpy = np.array(x_data_in_list)
+            n_samples = int(x_data_in_numpy.shape[0] / factor)
+            x_data_in_numpy = x_data_in_numpy[::factor]
+            y_data_in_numpy = np.array(y_data_in_list)
+            y_data_in_numpy = y_data_in_numpy[::factor]
 
             if 'val' in x_name or 'test' in x_name:
                 with experiment.validate():
                     path = create_new_scatterplot(x_name, x_data_in_numpy,
                                                   y_name, y_data_in_numpy,
-                                                  prefix=prefix,
-                                                  mix_reweight=mix_reweight)
+                                                  prefix=prefix)
                     experiment.log_image(
                         path, name=y_name+'n_samples_'+str(n_samples),
                         overwrite=False,
@@ -81,8 +77,7 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step, mix_re
                 with experiment.train():
                     path = create_new_scatterplot(x_name, x_data_in_numpy,
                                                   y_name, y_data_in_numpy,
-                                                  prefix=prefix,
-                                                  mix_reweight=mix_reweight)
+                                                  prefix=prefix)
                     experiment.log_image(
                         path, name=y_name+'n_samples_'+str(n_samples),
                         overwrite=False,
@@ -93,6 +88,62 @@ def report_scatterplots(scatterplots_list, experiment, tr_step, val_step, mix_re
                 raise ValueError("tr or val or test must be in metric name <{}>."
                                  "".format(x_name))
 
+def report_mix_scatterplots(scatterplots_list, experiment, tr_step, val_step):
+    """Only reports metrics"""
+    exp_id = experiment.get_key()
+    # Subsample for better visualization.
+    subsampling_factors = [2, 4, 8]
+    for factor in subsampling_factors:
+        prefix = exp_id + 'subsample' + str(factor)
+        for x_data, y_data in scatterplots_list:
+            x_name, x_data_in_list =  x_data
+            y_name, y_data_in_list =  y_data
+
+            # Refactor data
+            x_data_in_numpy_speech = np.array(x_data_in_list[0::2])[::factor]
+            x_data_in_numpy_other = np.array(x_data_in_list[1::2])[::factor]
+            y_data_in_numpy_speech = np.array(y_data_in_list[0::2])[::factor]
+            y_data_in_numpy_other = np.array(y_data_in_list[1::2])[::factor]
+
+            n_samples = int(len(x_data_in_list) / factor)
+
+            x_data_in_numpy = np.empty(
+                (x_data_in_numpy_speech.size + x_data_in_numpy_other.size,), 
+                dtype=x_data_in_numpy_speech.dtype)
+            x_data_in_numpy[0::2] = x_data_in_numpy_speech
+            x_data_in_numpy[1::2] = x_data_in_numpy_other
+
+            y_data_in_numpy = np.empty(
+                (y_data_in_numpy_speech.size + y_data_in_numpy_other.size,), 
+                dtype=y_data_in_numpy_speech.dtype)
+            y_data_in_numpy[0::2] = y_data_in_numpy_speech
+            y_data_in_numpy[1::2] = y_data_in_numpy_other
+
+            if 'val' in x_name or 'test' in x_name:
+                with experiment.validate():
+                    path = create_new_mix_scatterplot(x_name, x_data_in_numpy,
+                                                    y_name, y_data_in_numpy,
+                                                    prefix=prefix)
+                    experiment.log_image(
+                        path, name=y_name+'n_samples_'+str(n_samples),
+                        overwrite=False,
+                        image_format="png", image_scale=1.0, image_shape=None,
+                        image_colormap=None, image_minmax=None,
+                        image_channels="last", copy_to_tmp=True, step=val_step)
+            elif 'tr' in x_name:
+                with experiment.train():
+                    path = create_new_mix_scatterplot(x_name, x_data_in_numpy,
+                                                    y_name, y_data_in_numpy,
+                                                    prefix=prefix)
+                    experiment.log_image(
+                        path, name=y_name+'n_samples_'+str(n_samples),
+                        overwrite=False,
+                        image_format="png", image_scale=1.0, image_shape=None,
+                        image_colormap=None, image_minmax=None,
+                        image_channels="last", copy_to_tmp=True, step=tr_step)
+            else:
+                raise ValueError("tr or val or test must be in metric name <{}>."
+                                 "".format(x_name))
 
 def report_histograms(histograms_dict, experiment, tr_step, val_step):
     for h_name in histograms_dict:
@@ -158,7 +209,7 @@ def report_losses_mean_and_std_combinations(
                                  "".format(l_name))
 
 
-def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step, mix_reweight=False):
+def report_losses_mean_and_std(losses_dict, experiment, tr_step, val_step):
     """Wrapper for cometml loss report functionality.
 
     Reports the mean and the std of each loss by inferring the train and the

@@ -199,7 +199,7 @@ for i in range(hparams['n_epochs']):
     val_step += 1
     
     res_dic = cometml_report.report_losses_mean_and_std(
-        res_dic, experiment, tr_step, val_step, mix_reweight=True)
+        res_dic, experiment, tr_step, val_step)
     cometml_report.report_histograms(
         histograms_dic, experiment, tr_step, val_step)
     scatter_lists = []
@@ -210,7 +210,9 @@ for i in range(hparams['n_epochs']):
                             (val_set + '_SISDR' + suffix,
                              histograms_dic[val_set + '_SISDR' + suffix])])
     cometml_report.report_scatterplots(
-        scatter_lists, experiment, tr_step, val_step, mix_reweight=True)
+        scatter_lists, experiment, tr_step, val_step)
+    cometml_report.report_mix_scatterplots(
+        scatter_lists, experiment, tr_step, val_step, prefix='mix')
     # Save all metrics as assets.
     cometml_assets_logger.log_metrics(histograms_dic, '/tmp/', experiment,
                                       tr_step, val_step)
