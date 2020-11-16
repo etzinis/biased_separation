@@ -131,7 +131,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
                       pr_batch,
                       t_batch,
                       epoch_count,
-                      classes_indexes,
+                      classes_indexes=None,
                       initial_mixtures=None,
                       mix_reweight=False,
                       eps=10e-8):
@@ -173,6 +173,7 @@ class HigherOrderPermInvariantSISDR(nn.Module):
             
             T = T.flatten(0)
             new_weights = torch.softmax(T, 0).cuda()
+            sources_sisdr = new_weights * sources_sisdr
         elif classes_indexes is not None:
             # Randomly mixed sound classes
             sources_sisdr = new_weights * sources_sisdr.flatten(0)
